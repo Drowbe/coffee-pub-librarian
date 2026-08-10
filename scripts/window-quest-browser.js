@@ -28,7 +28,7 @@ if (!BlacksmithWindowBaseV2) {
  * 7,800 lines of working list rendering, filtering, pin placement, and
  * import/export to gain nothing that a container div doesn't already give.
  *
- * The panels' stylesheets key off `.squire-panel-host[data-position="left"]`,
+ * The panels' stylesheets key off `.librarian-panel-host[data-position="left"]`,
  * which the tray and this window's body both carry.
  */
 

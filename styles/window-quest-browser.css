@@ -15,7 +15,7 @@
     owns scrolling instead of the window scrolling as a whole.
 */
 
-.campaign-browser-window .blacksmith-window-template-body {
+.quest-browser-window .blacksmith-window-template-body {
     display: flex;
     flex-direction: column;
     /* The panel scrolls internally; a second scrollbar on the body would let
@@ -24,7 +24,7 @@
     padding: 0;
 }
 
-.campaign-browser-window .campaign-browser-body {
+.quest-browser-window .quest-browser-body {
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -33,12 +33,12 @@
     padding: 8px 4px 8px 8px;
 }
 
-.campaign-browser-window .campaign-browser-body > .panel-container {
+.quest-browser-window .quest-browser-body > .panel-container {
     flex: 1;
     min-height: 0;
 }
 
 /* The panel's own root, whatever it renders, has to be shrinkable too. */
-.campaign-browser-window .panel-container > * {
+.quest-browser-window .panel-container > * {
     min-height: 0;
 }

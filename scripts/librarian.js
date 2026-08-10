@@ -125,6 +125,14 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to register the quest window:`, error);
     }
 
+    // Journal page changes -> whichever browser is open.
+    try {
+        const { initJournalRouting } = await import('./manager-journal-routing.js');
+        initJournalRouting();
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to register journal routing:`, error);
+    }
+
     // Single-entry codex editor.
     try {
         const { registerCodexWindow, openCodexWindow } = await import('./window-codex.js');

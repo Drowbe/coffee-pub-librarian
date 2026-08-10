@@ -1,49 +1,21 @@
 # TODO
 
-## Bring Codex over from Squire
+## Codex — ported, awaiting live verification
 
-Quests are done (Squire 13.6.1). Codex is what remains. Audited against Squire at 13.6.1;
-sizes are line counts at the time of the audit.
+Code is in. What remains is the live pass, in this order and no other:
 
-### Moves whole
+1. **Run `macros/migrate-codex-from-squire.js`, DRY_RUN first**, with both modules enabled. Read the report; it names every page it would retype.
+2. Set `DRY_RUN = false`, re-run. Each page keeps its original `type` and `system` in the `squireMigrationBackup` flag, and the macro re-reads the page afterwards to check the entry data actually survived the type change — a silently-defaulted `system` does not throw, which is the whole reason that check exists. If anything lands in the FAILED list, set `REVERT = true` and stop.
+3. **Then** verify with Squire disabled. Not before: pages still typed `coffee-pub-squire.codex` fail validation when nothing declares that subtype, so a pre-migration test tells you nothing about Librarian.
+4. **Then** Squire deletes its codex, and drops its `documentTypes` declaration.
 
-| File | Lines | Notes |
-|---|---|---|
-| `panel-codex.js` | 2,061 | Browser, expand/collapse persistence, category management |
-| `window-codex.js` | 1,269 | Single-entry editor (already ApplicationV2) |
-| `utility-codex-parser.js` | 260 | Page HTML → codex data |
-| `sheets/codex-page-sheet.js` | 159 | Codex subtype sheet |
-| `data/codex-page-model.js` | 89 | Codex subtype data model |
+This is per-world. A world that has not run step 2 still has codex pages addressed to Squire and must run it before that world updates Squire.
 
-Templates: `panel-codex.hbs`, `window-codex.hbs`, `page-codex-fields-edit.hbs`, `page-codex-fields-view.hbs`.
+### Known, carried over rather than fixed in the port
 
-Styles: `panel-codex.css`, `window-codex.css`.
-
-Settings: `codexJournal` and its H3 heading.
-
-**Take the codex CSS that moved into Squire's stylesheets when quests left.** `panel-codex.css`
-gained the pin-placement cursor rules (`squire-codex-pin-placement`, `codex-pin-preview`) and the
-pin-icon state rules (`codex-pin-icon` / `-active` / `-dim`) — they used to be quest rules the codex
-markup was borrowing. Rename the `squire-` prefix on the way over; `panel-codex.hbs` emits these
-class names.
-
-### Shared — do NOT move yet
-
-- **`utility-base-parser.js`** (144) — base class for both the codex and notes parsers. Blacksmith withdrew the suggestion to hoist it: if Notes converges on an annotation model it may not survive at all, in which case Librarian simply takes it. Leave in Squire until the Notes shape settles.
-- **`utility-journal.js`** (569) — read/render/permission helpers, imported by codex, quest **and** notes panels. Same reasoning; it follows whichever way Notes goes.
-- **`manager-pins.js`** — **do not port wholesale.** It was budgeted as an adapter moving here. Under Blacksmith's annotation model, pins become one view of a general relationship and most of this wrapper stops existing. Take only what is genuinely codex-specific once that API lands. The quest slice already came over as `manager-quest-pins.js` (741 lines out of Squire's 2,325) — a useful size check on how much of that file is actually per-feature.
-- **`manager-notifications.js`** (336) — watches quest status, objective status, codex unlock, party notes **and** actor effects. Spans all four domains, so it is a Blacksmith candidate, not a Librarian one.
-
-### Migrations, to run as one pass
-
-1. **Codex page subtype.** Squire declares `coffee-pub-squire.codex`; Librarian declares `coffee-pub-librarian.codex`. (Quest pages were plain `text` pages and needed no type migration, which is why the quest move needed only flags and pin re-stamping.)
-   - Update `type` **in place**; never delete and recreate. Page ids and therefore UUIDs must survive, because codex pins reference pages by `codexUuid`.
-   - Write `type` and `system` in the same update, reading the existing `system` first — a subtype change can otherwise reset system data to the new model's defaults.
-   - Order: Librarian ships declaring the subtype → run the migration with both modules enabled → Squire's declaration comes out next release. Pages never spend a moment unclaimed.
-2. **Flag namespace, codex half.** `coffee-pub-squire.*` → `coffee-pub-librarian.*` on codex pages and pins: `codexCollapsedCategories`, `codexExpandedEntries`, `codexPinId`, `codexSceneId`, `codexTagCloudCollapsed`, `codexUuid`, `originalCategory`, `pinId`, `sceneId`, `tags`, `visibility`, `visible`, `x`, `y`. The quest half is already migrated — see `macros/migrate-quests-from-squire.js` for the shape to copy.
-3. **Quest storage rewrite** — stable `questId` / `taskId`, structured flags instead of parsing state out of HTML, merge-by-id on import. Now Librarian's to schedule; it was deliberately *not* folded into the move, since the migration macro copies the existing shape and a rewrite mid-move would have made a failure impossible to localise.
-
-The first two touch every codex page. Doing them as one migration means one chance to get it wrong instead of two.
+- **The import progress bar has been dead since Squire 13.6.0.** `panel-codex.js` and `panel-quest.js` both drive `.tray-progress-bar-wrapper` / `-inner` / `-text`, which only ever existed in Squire's `tray.hbs`. Once the panels moved into windows the element stopped existing, so `querySelector` returns null and the progress display silently does nothing. Either put the markup in `window-campaign-browser.hbs` or delete the code; right now it is neither.
+- **`squireSkipCodexRender`** is an update-option name that outlived its module. `panel-codex.js` sends it and `manager-journal-routing.js` reads it; renaming means changing both halves in one commit, so it is deliberately left alone until someone does.
+- **`utility-base-parser.js` and `utility-journal.js` are now duplicated** between Squire and Librarian. Squire still needs them for Notes. They converge or diverge for real when Notes moves to Blacksmith — not before.
 
 ## Handover from Squire — done
 

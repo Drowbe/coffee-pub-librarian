@@ -14,7 +14,7 @@ import { MODULE } from './const.js';
  * which element the panel renders into, and what "show me this panel" means. A
  * caller then asks for a kind, not for the tray.
  *
- * Kinds: 'quest' | 'codex' | 'notes'.
+ * Kinds: 'quest' | 'codex'.
  */
 
 /** @type {Map<string, {panel: object, getElement: () => (HTMLElement|null), reveal: () => (void|Promise<void>)}>} */

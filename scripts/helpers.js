@@ -1,5 +1,31 @@
 import { MODULE } from './const.js';
 
+const HTML_ESCAPES = Object.freeze({
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;'
+});
+
+const tooltipTimeouts = new Map();
+
+/**
+ * Create or get a shared quest tooltip element
+ * @param {string} tooltipId - The ID for the tooltip element
+ * @returns {HTMLElement} The tooltip element
+ */
+export function getOrCreateQuestTooltip(tooltipId) {
+    let tooltip = document.getElementById(tooltipId);
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = tooltipId;
+        tooltip.className = 'quest-tooltip-container';
+        document.body.appendChild(tooltip);
+    }
+    return tooltip;
+}
+
 /**
  * Shared helpers, carried over from Squire with the module identity swapped.
  *
@@ -548,3 +574,52 @@ export async function getObjectiveTooltipData(questPageUuid, objectiveIndex, pin
         return null;
     }
 }
+
+/**
+ * How many favorites the tray handle may show at once.
+ *
+ * Lives here rather than on FavoritesPanel so the Handlebars helper can read it
+ * without helpers.js importing a panel — panels already import helpers, and the
+ * cycle would be gratuitous. FavoritesPanel delegates here.
+ */
+export function getHandleFavoriteLimit() {
+    try {
+        const limit = Number(game.settings.get(MODULE.ID, 'handleFavoritesMax'));
+        if (Number.isFinite(limit) && limit > 0) return Math.floor(limit);
+    } catch (error) {
+        // Settings not registered yet — fall back to the default.
+    }
+    return 5;
+}
+
+// Helper function to get quest number from UUID
+function getQuestNumber(questUuid) {
+    let hash = 0;
+    for (let i = 0; i < questUuid.length; i++) {
+        hash = ((hash << 5) - hash) + questUuid.charCodeAt(i);
+        hash = hash & hash;
+    }
+    return Math.abs(hash) % 100 + 1;
+}
+
+
+/**
+ * Clean task text by removing GM notes and treasure links
+ * @param {string} text - The raw task text
+ * @returns {string} The cleaned task text
+ */
+export function cleanTaskText(text) {
+    if (!text) return text;
+    
+    // Remove GM notes between || || (including the pipes)
+    text = text.replace(/\|\|[^|]*\|\|/g, '');
+    
+    // Remove treasure links between (( )) (including the parentheses)
+    text = text.replace(/\(\([^)]*\)\)/g, '');
+    
+    // Clean up extra whitespace
+    text = text.replace(/\s+/g, ' ').trim();
+    
+    return text;
+}
+

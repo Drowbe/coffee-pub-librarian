@@ -98,23 +98,40 @@ if (!game.user.isGM) {
     if (!pins?.list) {
         report.skipped.push('pins: Blacksmith pins API unavailable');
     } else {
-        for (const scene of game.scenes) {
-            let scenePins = [];
+        // `includeHiddenByFilter: true` is essential, not defensive. Without it
+        // pins.list() omits anything hidden by a layer filter — and a pin for a
+        // hidden objective is created hidden by design, so the pins most likely
+        // to exist unnoticed are exactly the ones a default listing skips.
+        const collect = (options) => {
             try {
-                scenePins = pins.list({ sceneId: scene.id, moduleId: SQUIRE }) || [];
+                return pins.list({ ...options, moduleId: SQUIRE, includeHiddenByFilter: true }) || [];
             } catch (error) {
-                report.skipped.push(`pins on "${scene.name}": ${error.message}`);
-                continue;
+                report.skipped.push(`pins ${JSON.stringify(options)}: ${error.message}`);
+                return [];
             }
-            for (const pin of scenePins) {
-                if (!pin?.config?.questUuid) continue;
-                report.pins++;
-                if (!DRY_RUN) {
-                    try {
-                        await pins.updateAsGM(scene.id, pin.id, { moduleId: LIBRARIAN });
-                    } catch (error) {
-                        report.skipped.push(`pin ${pin.id} on "${scene.name}": ${error.message}`);
-                    }
+        };
+
+        const candidates = [];
+        for (const scene of game.scenes) {
+            for (const pin of collect({ sceneId: scene.id })) candidates.push([pin, scene.name]);
+        }
+        // Unplaced pins live in a world setting rather than on a scene, so a
+        // per-scene sweep never sees them. They still carry a moduleId and would
+        // be orphaned just the same.
+        for (const pin of collect({ unplacedOnly: true })) candidates.push([pin, '(unplaced)']);
+
+        const seen = new Set();
+        for (const [pin, where] of candidates) {
+            if (!pin?.config?.questUuid || seen.has(pin.id)) continue;
+            seen.add(pin.id);
+            report.pins++;
+            if (!DRY_RUN) {
+                try {
+                    // update() resolves the pin's own location, so this is
+                    // correct for placed and unplaced alike.
+                    await pins.update(pin.id, { moduleId: LIBRARIAN });
+                } catch (error) {
+                    report.skipped.push(`pin ${pin.id} on ${where}: ${error.message}`);
                 }
             }
         }

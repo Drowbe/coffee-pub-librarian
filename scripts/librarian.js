@@ -1,5 +1,6 @@
 import { MODULE, TEMPLATES, WINDOWS } from './const.js';
 import { registerSettings } from './settings.js';
+import { registerHelpers } from './helpers.js';
 
 /**
  * Entry point.
@@ -31,6 +32,11 @@ async function waitForBlacksmith() {
 
 Hooks.once('init', () => {
     registerSettings();
+    // Handlebars helpers are a global namespace. Squire registers its own set,
+    // so while both modules were enabled Librarian's templates were quietly
+    // borrowing them — and every one of them broke the moment Squire was
+    // disabled. Librarian registers its own.
+    registerHelpers();
 });
 
 Hooks.once('ready', async () => {

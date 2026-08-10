@@ -41,6 +41,15 @@ Settings: `codexJournal`, `questJournal`, `questCategories`, and their two H3 he
 
 All three touch every campaign page. Doing them as one migration means one chance to get it wrong instead of three.
 
+## Handover from Squire — remaining
+
+- [x] Quests ported and verified rendering in a live world.
+- [x] Quest/objective pin types, taxonomy and canvas double-click registered (`initQuestPins`).
+- [x] Migration macro written — `macros/migrate-quests-from-squire.js`. Copies quest settings, page flags, per-user quest flags, and re-stamps quest pins from `coffee-pub-squire` to `coffee-pub-librarian`. Defaults to a dry run.
+- [ ] **Run the migration** (dry run first, read the report, then apply).
+- [ ] **Verify with Squire disabled.** The pass that catches anything still leaning on Squire — it already caught two leaked class names. Expect one validation error per codex page; that is Squire's subtype, not a Librarian fault.
+- [ ] **Then remove Quests from Squire**, not before.
+
 ## Open
 
 - **Scribe.** An under-developed `coffee-pub-scribe` exists. Worth reading before this module accumulates a personality it can't share.

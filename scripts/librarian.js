@@ -56,6 +56,14 @@ Hooks.once('ready', async () => {
         });
     }
 
+    // Quest/objective pin types, taxonomy and canvas events.
+    try {
+        const { initQuestPins } = await import('./manager-quest-pins.js');
+        await initQuestPins();
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to initialise quest pins:`, error);
+    }
+
     // The quest list renders one partial per entry.
     try {
         const questEntry = await fetch(TEMPLATES.PARTIAL_QUEST_ENTRY).then(r => r.text());

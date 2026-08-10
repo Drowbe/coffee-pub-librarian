@@ -810,3 +810,84 @@ export async function focusQuestInPanel(questUuid, objectiveIndex = null, questS
     trackModuleTimeout(tryFocus, 500);
     trackModuleTimeout(tryFocus, 1000);
 }
+
+// ---------------------------------------------------------------------------
+//  Initialisation
+// ---------------------------------------------------------------------------
+
+let _initialised = false;
+let _controller = null;
+
+/**
+ * Register quest and objective pin types with Blacksmith, and wire the canvas
+ * events that belong to them.
+ *
+ * Squire did this inside one `initPinManager()` covering quests, objectives,
+ * notes and codex entries. Only the quest half belongs here — the rest follows
+ * its own content.
+ *
+ * Registration is what gives a pin type a display name in Blacksmith's pin
+ * manager and a place in the taxonomy that Configure Pin offers as suggested
+ * tags. Pins can be created without it, which is why its absence shows up as
+ * unlabelled pins rather than an error.
+ */
+export async function initQuestPins() {
+    if (_initialised) return;
+
+    const pins = getPinsApi();
+    if (!isPinsApiAvailable(pins)) {
+        console.warn(`${MODULE.TITLE} | Quest pin init deferred: Blacksmith pins API not available.`);
+        return;
+    }
+
+    try {
+        if (typeof pins.whenReady === 'function') await pins.whenReady();
+    } catch (error) {
+        console.warn(`${MODULE.TITLE} | pins.whenReady() failed during initQuestPins:`, error);
+    }
+
+    _controller = new AbortController();
+    const signal = _controller.signal;
+
+    try {
+        pins.registerPinType?.(MODULE.ID, getSquirePinType('quest'), 'Quest Pin');
+        pins.registerPinType?.(MODULE.ID, getSquirePinType('objective'), 'Objective Pin');
+    } catch (error) {
+        console.warn(`${MODULE.TITLE} | registerPinType failed:`, error);
+    }
+
+    try {
+        pins.registerPinTaxonomy?.(MODULE.ID, getSquirePinType('quest'), {
+            label: 'Quest',
+            tags: ['quest', 'main', 'side', 'faction', 'backstory']
+        });
+        pins.registerPinTaxonomy?.(MODULE.ID, getSquirePinType('objective'), {
+            label: 'Objective',
+            tags: ['objective', 'main', 'side', 'faction', 'backstory']
+        });
+    } catch (error) {
+        console.warn(`${MODULE.TITLE} | registerPinTaxonomy failed:`, error);
+    }
+
+    // Double-click a quest or objective pin to reveal it in the quest browser.
+    pins.on?.('doubleClick', async (evt) => {
+        const pin = evt?.pin ?? evt?.pinData;
+        if (!pin) return;
+        const config = pin.config || {};
+        const isQuestPin = isSquirePinCategory(pin.type, 'quest')
+            || isSquirePinCategory(pin.type, 'objective')
+            || !!config.questUuid;
+        if (!isQuestPin || !config.questUuid) return;
+        await focusQuestInPanel(config.questUuid, config.objectiveIndex, config.questStatus);
+    }, { moduleId: MODULE.ID, signal });
+
+    _initialised = true;
+    console.info(`${MODULE.TITLE} | Quest pins initialised.`);
+}
+
+/** Release the canvas event registrations. */
+export function teardownQuestPins() {
+    _controller?.abort();
+    _controller = null;
+    _initialised = false;
+}

@@ -2148,8 +2148,12 @@ export class QuestPanel {
         }
 
         // Quest titlebar "..." context menu (Blacksmith) - all actions except Add New Quest
+        // Availability is checked when the button is CLICKED, not when the panel
+        // renders. Deciding at render time means that if the API is not ready
+        // for that one pass, no listener is ever attached and the button is
+        // silently inert for the life of the panel — with nothing logged.
         const titlebarMenuBtn = nativeHtml.querySelector('.quest-titlebar-menu');
-        if (titlebarMenuBtn && getBlacksmith()?.uiContextMenu?.show) {
+        if (titlebarMenuBtn) {
             const newTitlebarBtn = titlebarMenuBtn.cloneNode(true);
             titlebarMenuBtn.parentNode?.replaceChild(newTitlebarBtn, titlebarMenuBtn);
             newTitlebarBtn.addEventListener('click', (event) => {
@@ -2220,7 +2224,13 @@ export class QuestPanel {
                         }
                     ] : []
                 };
-                getBlacksmith().uiContextMenu.show({
+                const contextMenu = getBlacksmith()?.uiContextMenu;
+                if (typeof contextMenu?.show !== 'function') {
+                    ui.notifications.warn('The quest menu needs Coffee Pub Blacksmith.');
+                    console.error(`${MODULE.TITLE} | uiContextMenu unavailable when opening the quest menu.`);
+                    return;
+                }
+                contextMenu.show({
                     id: `${MODULE.ID}-quest-titlebar-menu`,
                     x: event.clientX,
                     y: event.clientY,
@@ -2835,8 +2845,18 @@ export class QuestPanel {
         });
 
         // Objective context menu (GM only) - Blacksmith Context Menu
-        const objCtxMenu = getBlacksmith()?.uiContextMenu;
-        if (objCtxMenu?.show) {
+        // Resolved per click, not per render — see the titlebar menu above.
+        const objCtxMenu = {
+            show: (...args) => {
+                const menu = getBlacksmith()?.uiContextMenu;
+                if (typeof menu?.show !== 'function') {
+                    console.error(`${MODULE.TITLE} | uiContextMenu unavailable when opening the objective menu.`);
+                    return null;
+                }
+                return menu.show(...args);
+            }
+        };
+        if (objCtxMenu) {
             nativeHtml.querySelectorAll('.objective-context-menu').forEach(menuButton => {
                 const newButton = menuButton.cloneNode(true);
                 menuButton.parentNode?.replaceChild(newButton, menuButton);
@@ -2921,8 +2941,18 @@ export class QuestPanel {
         }
 
         // Quest options menu (GM only) - Blacksmith Context Menu
-        const ctxMenu = getBlacksmith()?.uiContextMenu;
-        if (ctxMenu?.show) {
+        // Resolved per click, not per render — see the titlebar menu above.
+        const ctxMenu = {
+            show: (...args) => {
+                const menu = getBlacksmith()?.uiContextMenu;
+                if (typeof menu?.show !== 'function') {
+                    console.error(`${MODULE.TITLE} | uiContextMenu unavailable when opening the quest status menu.`);
+                    return null;
+                }
+                return menu.show(...args);
+            }
+        };
+        if (ctxMenu) {
             nativeHtml.querySelectorAll('.quest-status-menu').forEach(menuButton => {
                 const newButton = menuButton.cloneNode(true);
                 menuButton.parentNode?.replaceChild(newButton, menuButton);

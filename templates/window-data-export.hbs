@@ -1,0 +1,31 @@
+<div class="blacksmith-window-template-root librarian-data-export-window" data-app-id="{{appId}}">
+    <section class="librarian-data-export-content">
+        <label class="librarian-template-title" for="{{appId}}-json">JSON Preview</label>
+        <textarea id="{{appId}}-json" class="librarian-export-textarea" readonly>{{data}}</textarea>
+
+        {{#if summary.length}}
+        <div class="librarian-export-summary">
+            <div class="librarian-export-summary-title">Export Summary</div>
+            <ul class="librarian-export-summary-list">
+                {{#each summary}}<li><strong>{{this.label}}:</strong> {{this.value}}</li>{{/each}}
+            </ul>
+        </div>
+        {{/if}}
+
+        {{#if sceneNames.length}}
+        <div class="librarian-scene-pins-section">
+            <div class="librarian-scene-pins-title">Scenes with Pins</div>
+            <div>{{#each sceneNames}}<span class="librarian-scene-pins-label librarian-scene-pins-success">{{this}}</span>{{/each}}</div>
+        </div>
+        {{/if}}
+    </section>
+    <footer class="blacksmith-window-footer">
+        <button type="button" class="blacksmith-window-btn-secondary" data-action="close">Close</button>
+        <button type="button" class="blacksmith-window-btn-secondary" data-action="copy">
+            <i class="fa-solid fa-copy"></i> Copy
+        </button>
+        <button type="button" class="blacksmith-window-btn-primary" data-action="download">
+            <i class="fa-solid fa-download"></i> Download JSON
+        </button>
+    </footer>
+</div>

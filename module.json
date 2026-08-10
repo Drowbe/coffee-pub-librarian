@@ -33,6 +33,11 @@
       }
     ]
   },
+  "documentTypes": {
+    "JournalEntryPage": {
+      "codex": {}
+    }
+  },
   "esmodules": [
     "scripts/const.js",
     "scripts/librarian.js"

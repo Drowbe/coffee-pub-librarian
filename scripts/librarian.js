@@ -1,6 +1,8 @@
-import { MODULE, TEMPLATES, WINDOWS } from './const.js';
+import { MODULE, TEMPLATES, WINDOWS, CODEX_PAGE_TYPE } from './const.js';
 import { registerSettings } from './settings.js';
 import { registerHelpers } from './helpers.js';
+import { CodexPageModel } from './data/codex-page-model.js';
+import { CodexPageSheet } from './sheets/codex-page-sheet.js';
 
 /**
  * Entry point.
@@ -37,6 +39,21 @@ Hooks.once('init', () => {
     // borrowing them — and every one of them broke the moment Squire was
     // disabled. Librarian registers its own.
     registerHelpers();
+
+    // The codex page subtype: data model + sheet.
+    //
+    // This MUST be `init`, not `ready`. Foundry validates documents as the world
+    // loads, before ready — a page whose `type` names a subtype nobody has
+    // registered fails validation, one console error per page, and the page will
+    // not render. Registering late is indistinguishable from not registering.
+    Object.assign(CONFIG.JournalEntryPage.dataModels, {
+        [CODEX_PAGE_TYPE]: CodexPageModel
+    });
+    foundry.applications.apps.DocumentSheetConfig.registerSheet(JournalEntryPage, MODULE.ID, CodexPageSheet, {
+        types: [CODEX_PAGE_TYPE],
+        makeDefault: true,
+        label: 'Librarian Codex Entry'
+    });
 });
 
 Hooks.once('ready', async () => {
@@ -70,6 +87,15 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to initialise quest pins:`, error);
     }
 
+    // Codex pin type, taxonomy and lifecycle. Separate from the quest pins on
+    // purpose — see the header of manager-codex-pins.js.
+    try {
+        const { initCodexPins } = await import('./manager-codex-pins.js');
+        await initCodexPins();
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to initialise codex pins:`, error);
+    }
+
     // The quest list renders one partial per entry.
     try {
         const questEntry = await fetch(TEMPLATES.PARTIAL_QUEST_ENTRY).then(r => r.text());
@@ -78,13 +104,16 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to register the quest-entry partial:`, error);
     }
 
-    // Browser window + its menubar launcher.
+    // Browser windows (quests + codex) and their menubar launchers.
     try {
-        const { registerQuestBrowserWindow, openQuestBrowser } = await import('./window-quest-browser.js');
-        registerQuestBrowserWindow();
-        module.api.openQuestBrowser = openQuestBrowser;
+        const { registerCampaignBrowserWindows, openCampaignBrowser } = await import('./window-campaign-browser.js');
+        registerCampaignBrowserWindows();
+        module.api.openCampaignBrowser = openCampaignBrowser;
+        // Kept as an alias: campaign-panels.js reveals a panel by asking the
+        // module to open its browser, and other modules may already call this.
+        module.api.openQuestBrowser = openCampaignBrowser;
     } catch (error) {
-        console.error(`${MODULE.TITLE} | Failed to register the quest browser:`, error);
+        console.error(`${MODULE.TITLE} | Failed to register the campaign browsers:`, error);
     }
 
     // Single-quest editor.
@@ -96,6 +125,15 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to register the quest window:`, error);
     }
 
+    // Single-entry codex editor.
+    try {
+        const { registerCodexWindow, openCodexWindow } = await import('./window-codex.js');
+        registerCodexWindow();
+        module.api.openCodexWindow = openCodexWindow;
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to register the codex window:`, error);
+    }
+
     if (typeof blacksmith.registerMenubarTool === 'function') {
         try {
             blacksmith.registerMenubarTool('librarian-quests', {
@@ -104,7 +142,7 @@ Hooks.once('ready', async () => {
                 title: 'Quests',
                 tooltip: 'Open the quest log',
                 onClick: async () => {
-                    const open = game.modules.get(MODULE.ID)?.api?.openQuestBrowser;
+                    const open = game.modules.get(MODULE.ID)?.api?.openCampaignBrowser;
                     if (typeof open !== 'function') {
                         ui.notifications.warn('The quest log is not ready yet.');
                         return;
@@ -122,9 +160,33 @@ Hooks.once('ready', async () => {
                 toggleable: false,
                 active: false
             });
+            blacksmith.registerMenubarTool('librarian-codex', {
+                icon: 'fa-solid fa-book',
+                name: 'librarian-codex',
+                title: 'Codex',
+                tooltip: 'Open the codex',
+                onClick: async () => {
+                    const open = game.modules.get(MODULE.ID)?.api?.openCampaignBrowser;
+                    if (typeof open !== 'function') {
+                        ui.notifications.warn('The codex is not ready yet.');
+                        return;
+                    }
+                    await open('codex');
+                },
+                zone: 'middle',
+                group: 'campaign',
+                groupOrder: 20,
+                order: 205,
+                moduleId: MODULE.ID,
+                gmOnly: false,
+                leaderOnly: false,
+                visible: true,
+                toggleable: false,
+                active: false
+            });
             blacksmith.renderMenubar?.(true);
         } catch (error) {
-            console.error(`${MODULE.TITLE} | Failed to register the Quests menubar tool:`, error);
+            console.error(`${MODULE.TITLE} | Failed to register the menubar tools:`, error);
         }
     }
 

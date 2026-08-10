@@ -1,6 +1,7 @@
-import { MODULE, WINDOWS } from './const.js';
+import { MODULE, TEMPLATES, WINDOWS } from './const.js';
 import { registerCampaignPanel, unregisterCampaignPanel } from './campaign-panels.js';
 import { getQuestPanel } from './quest-panel-instance.js';
+import { getCodexPanel } from './codex-panel-instance.js';
 
 function getBlacksmith() {
     return globalThis.game?.modules?.get?.('coffee-pub-blacksmith')?.api ?? null;
@@ -10,7 +11,7 @@ const BlacksmithWindowBaseV2 = getBlacksmith()?.BlacksmithWindowBaseV2
     || getBlacksmith()?.getWindowBaseV2?.();
 
 if (!BlacksmithWindowBaseV2) {
-    throw new Error('Coffee Pub Squire | BlacksmithWindowBaseV2 is unavailable for QuestBrowserWindow');
+    throw new Error('Coffee Pub Squire | BlacksmithWindowBaseV2 is unavailable for CampaignBrowserWindow');
 }
 
 /**
@@ -41,11 +42,19 @@ const KINDS = {
         rootClass: 'quest-browser-window',
         position: { width: 520, height: 860 },
         constraints: { minWidth: 420, minHeight: 480 }
+    },
+    codex: {
+        id: WINDOWS.CODEX_BROWSER,
+        title: 'Codex',
+        panelKey: 'panel-codex',
+        headerIcon: 'fa-solid fa-book',
+        rootClass: 'codex-browser-window',
+        position: { width: 520, height: 860 },
+        constraints: { minWidth: 420, minHeight: 480 }
     }
 };
 
-export class QuestBrowserWindow extends BlacksmithWindowBaseV2 {
-    static ROOT_CLASS = 'quest-browser-window';
+export class CampaignBrowserWindow extends BlacksmithWindowBaseV2 {
 
     /**
      * Live window per kind, assigned in the constructor.
@@ -59,7 +68,7 @@ export class QuestBrowserWindow extends BlacksmithWindowBaseV2 {
 
     static PARTS = {
         body: {
-            template: `modules/${MODULE.ID}/templates/window-quest-browser.hbs`
+            template: TEMPLATES.WINDOW_CAMPAIGN_BROWSER
         }
     };
 
@@ -67,7 +76,7 @@ export class QuestBrowserWindow extends BlacksmithWindowBaseV2 {
 
     constructor(kind, options = {}) {
         const config = KINDS[kind];
-        if (!config) throw new Error(`Coffee Pub Squire | Unknown campaign browser kind: ${kind}`);
+        if (!config) throw new Error(`Coffee Pub Librarian | Unknown campaign browser kind: ${kind}`);
 
         const opts = foundry.utils.mergeObject({}, options);
         opts.id = config.id;
@@ -87,7 +96,7 @@ export class QuestBrowserWindow extends BlacksmithWindowBaseV2 {
         super(opts);
         this.kind = kind;
         this.config = config;
-        QuestBrowserWindow.openByKind.set(kind, this);
+        CampaignBrowserWindow.openByKind.set(kind, this);
     }
 
     _viewContext() {
@@ -135,20 +144,17 @@ export class QuestBrowserWindow extends BlacksmithWindowBaseV2 {
         await panel.render(this.element);
     }
 
-    /**
-     * The panel instance to host. Sourced from PanelManager because that is
-     * still what constructs them; when campaign content moves out, this is the
-     * line that changes and nothing else in the window does.
-     */
+    /** The panel instance this window hosts. One lazily-created panel per kind. */
     _getPanel() {
+        if (this.kind === 'codex') return getCodexPanel();
         return getQuestPanel();
     }
 
     _onClose(options) {
         // Identity-checked: a rebuild may already have replaced this entry, and
         // deleting blindly would drop the live window's registration.
-        if (QuestBrowserWindow.openByKind.get(this.kind) === this) {
-            QuestBrowserWindow.openByKind.delete(this.kind);
+        if (CampaignBrowserWindow.openByKind.get(this.kind) === this) {
+            CampaignBrowserWindow.openByKind.delete(this.kind);
         }
         // Leave the registry pointing at nothing rather than at a dead element.
         // A caller that finds no panel skips quietly, which is the correct
@@ -164,11 +170,11 @@ export class QuestBrowserWindow extends BlacksmithWindowBaseV2 {
  * Reuses the live instance when there is one, so a second launch focuses
  * rather than duplicating.
  */
-export async function openQuestBrowser(kind) {
+export async function openCampaignBrowser(kind) {
     const config = KINDS[kind];
     if (!config) return null;
 
-    const existing = QuestBrowserWindow.openByKind.get(kind);
+    const existing = CampaignBrowserWindow.openByKind.get(kind);
     if (existing) {
         (existing.bringToFront ?? existing.bringToTop)?.call(existing);
         if (existing.minimized) existing.maximize?.();
@@ -176,13 +182,13 @@ export async function openQuestBrowser(kind) {
         return existing;
     }
 
-    const win = new QuestBrowserWindow(kind);
+    const win = new CampaignBrowserWindow(kind);
     await win.render(true);
     return win;
 }
 
-/** Register all three with Blacksmith's window registry. */
-export function registerQuestBrowserWindow() {
+/** Register every kind with Blacksmith's window registry. */
+export function registerCampaignBrowserWindows() {
     const blacksmith = getBlacksmith();
     if (!blacksmith?.registerWindow) return false;
 

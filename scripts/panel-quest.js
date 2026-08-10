@@ -953,9 +953,9 @@ export class QuestPanel {
                     nativeDlgHtml = html[0] || html.get?.(0) || html;
                 }
                 const cancelButton = nativeDlgHtml.querySelector('[data-button="cancel"]');
-                if (cancelButton) cancelButton.classList.add('squire-cancel-button');
+                if (cancelButton) cancelButton.classList.add('librarian-cancel-button');
                 const importButton = nativeDlgHtml.querySelector('[data-button="import"]');
-                if (importButton) importButton.classList.add('squire-submit-button');
+                if (importButton) importButton.classList.add('librarian-submit-button');
                 const copyTemplateButton = nativeDlgHtml.querySelector('.copy-template-button');
                 if (copyTemplateButton) {
                     copyTemplateButton.addEventListener('click', () => {

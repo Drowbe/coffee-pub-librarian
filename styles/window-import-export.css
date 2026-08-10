@@ -1,0 +1,237 @@
+/*
+    Import/export dialog styling.
+
+    Copied from Squire with the class prefix renamed. It had to be copied rather
+    than shared: the markup Librarian inherited still said `squire-*`, so this
+    dialog was being styled by Squire's stylesheet across the module boundary —
+    invisible while both modules were enabled, and unstyled the moment Squire
+    stops shipping it. `window-import-export.hbs` was renamed to match.
+*/
+
+
+
+/* Import/Export Dialog Styling */
+.dialog.import-export-dialog {
+    width: 600px !important;
+    min-width: 600px !important;
+    max-width: 90vw !important;
+    height: auto !important;
+    min-height: 400px !important;
+    resize: both !important;
+    overflow: auto !important;
+}
+
+.dialog.import-export-dialog .dialog-content {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 400px !important;
+    resize: vertical !important;
+    overflow: auto !important;
+}
+
+.dialog.import-export-dialog textarea {
+    resize: vertical !important;
+    min-height: 200px !important;
+}
+
+/* Librarian Import/Export Template Styles */
+.librarian-window-import-export {
+    /* Base container styles */
+    display: block
+}
+
+.librarian-window-import-export .librarian-template-section {
+    margin-bottom: 16px;
+}
+
+.librarian-window-import-export .librarian-template-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.librarian-window-import-export .librarian-template-button {
+    margin: 8px 8px 8px 0;
+    padding: 8px 16px;
+    background: #522c34;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.librarian-window-import-export .librarian-browse-button {
+    margin: 8px 8px 8px 0;
+    padding: 8px 16px;
+    background: #28542b;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+
+
+.librarian-window-import-export .librarian-json-textarea {
+    width: 100%;
+    height: 400px;
+    resize: vertical;
+}
+
+.librarian-window-import-export .librarian-export-textarea {
+    width: 100%;
+    height: 500px;
+    resize: vertical;
+}
+
+.librarian-window-import-export .librarian-file-input {
+    display: none;
+}
+
+.librarian-window-import-export .librarian-details-section {
+    margin-bottom: 12px;
+}
+
+.librarian-window-import-export .librarian-details-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.librarian-window-import-export .librarian-details-list {
+    margin: 8px 0;
+}
+
+.librarian-window-import-export .librarian-details-list li {
+    margin: 4px 0;
+}
+
+.librarian-window-import-export .librarian-export-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.librarian-window-import-export .librarian-export-summary {
+    margin-bottom: 8px;
+}
+
+.librarian-window-import-export .librarian-export-summary-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.librarian-window-import-export .librarian-export-summary-list {
+    margin: 8px 0;
+}
+
+.librarian-window-import-export .librarian-export-summary-list li {
+    margin: 4px 0;
+}
+
+.librarian-window-import-export .librarian-export-summary-list strong {
+    font-weight: bold;
+}
+
+.librarian-window-import-export .librarian-scene-pins-section {
+    margin-bottom: 8px;
+}
+
+.librarian-window-import-export .librarian-scene-pins-title {
+    font-weight: bold;
+    margin-bottom: 8px;
+}
+
+.librarian-window-import-export .librarian-scene-pins-label {
+    margin-right: 4px;
+}
+
+.librarian-window-import-export .librarian-scene-pins-success {
+    color: rgb(13, 97, 16);
+}
+
+.librarian-window-import-export .librarian-scene-pins-warning {
+    color: rgb(167, 106, 14);
+}
+
+.librarian-window-import-export .librarian-divider {
+    border: none;
+    border-top: 1px solid #666;
+    margin: 16px 0;
+}
+
+
+
+
+/* BUTTONS */
+
+.import-export-dialog .dialog-buttons {
+    display: flex !important;
+    flex-direction: row !important;  /* horizontal instead of vertical */
+    justify-content: space-between;  /* spread them out */
+    gap: 4px;                        /* space between buttons */
+  }
+  
+  .import-export-dialog .dialog-buttons .dialog-button {
+    flex: 1;               /* make them equal width */
+    text-align: center;    /* center text inside */
+  }
+  
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="import"],
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="download"],
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="close"],
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="cancel"] {
+      border: none !important;
+      border-radius: 4px !important;
+      padding: 12px 4px !important;
+      cursor: pointer !important;
+      font-weight: 500 !important;
+      font-size: 1.1em;
+      text-transform: uppercase;
+  }
+  
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="import"],
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="download"] {
+      background: #28542b !important;
+      color: white !important;
+  }
+  
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="import"]:hover,
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="download"]:hover {
+      background: #1e3d20;
+  }
+  
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="close"],
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="cancel"] {
+      background: #222222 !important;
+      color: white !important;
+  }
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="close"]:hover,
+  .import-export-dialog .dialog-buttons .dialog-button[data-button="cancel"]:hover {
+      background: #2f2f2f;
+  } 
+
+/* Shared ApplicationV2 export window */
+.librarian-data-export-window {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.librarian-data-export-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+}
+
+.librarian-data-export-window .librarian-export-textarea {
+    flex: 1 1 auto;
+    min-height: 180px;
+    resize: none;
+}
+
+.librarian-data-export-window .librarian-scene-pins-label {
+    display: inline-block;
+    margin: 2px 4px 2px 0;
+}

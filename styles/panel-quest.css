@@ -5,18 +5,18 @@
 }
 
 /* Pin to Scene placement mode cursor */
-html.squire-quest-pin-placement,
-body.squire-quest-pin-placement {
+html.librarian-quest-pin-placement,
+body.librarian-quest-pin-placement {
     cursor: crosshair;
 }
 
-html.squire-quest-pin-placement *,
-body.squire-quest-pin-placement * {
+html.librarian-quest-pin-placement *,
+body.librarian-quest-pin-placement * {
     cursor: inherit !important;
 }
 
-body.squire-quest-pin-placement .squire-quest-pin-placement-canvas,
-html.squire-quest-pin-placement .squire-quest-pin-placement-canvas {
+body.librarian-quest-pin-placement .librarian-quest-pin-placement-canvas,
+html.librarian-quest-pin-placement .librarian-quest-pin-placement-canvas {
     cursor: crosshair;
 }
 

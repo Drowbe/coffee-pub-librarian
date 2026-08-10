@@ -46,6 +46,31 @@ export function registerSettings() {
         default: ['Main Quest', 'Side Quest']
     });
 
+    game.settings.register(MODULE.ID, 'headingH2Codex', {
+        name: 'Codex',
+        hint: 'Where codex entries are stored.',
+        scope: 'world',
+        config: true,
+        default: '',
+        type: String
+    });
+
+    game.settings.register(MODULE.ID, 'codexJournal', {
+        name: 'Codex Journal',
+        hint: 'The journal to use for codex entries. Each entry is a separate page in this journal.',
+        scope: 'world',
+        config: true,
+        type: String,
+        choices: () => {
+            const choices = { none: '- Select Journal -' };
+            for (const journal of game.journal?.contents ?? []) {
+                choices[journal.id] = journal.name;
+            }
+            return choices;
+        },
+        default: 'none'
+    });
+
     game.settings.register(MODULE.ID, 'pinSound', {
         scope: 'client',
         config: false,

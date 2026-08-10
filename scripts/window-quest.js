@@ -33,7 +33,7 @@ export class QuestWindow extends BlacksmithWindowBaseV2 {
         foundry.utils.mergeObject({}, super.DEFAULT_OPTIONS ?? {}),
         {
             id: QUEST_WINDOW_ID,
-            classes: ['quest-entry-window', 'quest-window', 'squire-window'],
+            classes: ['quest-entry-window', 'quest-window', 'librarian-window'],
             position: { width: 860, height: 900 },
             window: { title: 'Quest', resizable: true, minimizable: true },
             windowSizeConstraints: { minWidth: 700, minHeight: 640 }

@@ -14,55 +14,55 @@
   }}
 --}}
 
-<div id="squire-window-import-export" class="squire-window-import-export">
+<div id="librarian-window-import-export" class="librarian-window-import-export">
 {{#if isImport}}
   {{!-- ************* IMPORT ************* --}}
 
   {{!-- Template Copy Button --}}
-  <div class="squire-template-section">
-    <div class="squire-template-title">Base Prompt Template</div>
-    <button type="button" class="copy-template-button squire-template-button">
+  <div class="librarian-template-section">
+    <div class="librarian-template-title">Base Prompt Template</div>
+    <button type="button" class="copy-template-button librarian-template-button">
       <i class="fa-solid fa-copy"></i> Copy to Clipboard
     </button>
-    <hr class="squire-divider">
+    <hr class="librarian-divider">
   </div>
 
   {{!-- JSON Import or Paste --}}
-  <div class="squire-template-section">
-    <div class="squire-template-title">Select or Paste JSON</div>
-    <button type="button" class="browse-file-button squire-browse-button">
+  <div class="librarian-template-section">
+    <div class="librarian-template-title">Select or Paste JSON</div>
+    <button type="button" class="browse-file-button librarian-browse-button">
       <i class="fa-solid fa-folder-open"></i> Select JSON File
     </button>
   </div>
-  <textarea id="{{jsonInputId}}" class="squire-json-textarea"></textarea>  
-  <input type="file" id="import-file-input" class="squire-file-input" accept=".json">
+  <textarea id="{{jsonInputId}}" class="librarian-json-textarea"></textarea>  
+  <input type="file" id="import-file-input" class="librarian-file-input" accept=".json">
 
   {{!-- Codex Details --}}
   {{#if (eq type "codex")}}
-  <div class="squire-details-section">
-    <hr class="squire-divider">
-    <div class="squire-details-title">Codex Smart Import</div>
-    <ul class="squire-details-list">
+  <div class="librarian-details-section">
+    <hr class="librarian-divider">
+    <div class="librarian-details-title">Codex Smart Import</div>
+    <ul class="librarian-details-list">
       <li>Existing Codex entries are updated, not duplicated</li>
       <li>Visibility states are preserved</li>
       <li>After import, run auto-discovery to enable the items the party has already discovered</li>
     </ul>
-    <hr class="squire-divider">
+    <hr class="librarian-divider">
   </div>
   {{/if}}
 
   {{!-- Quest Details --}}
   {{#if (eq type "quests")}}
-  <div class="squire-details-section">
-    <hr class="squire-divider">
-    <div class="squire-details-title">Quest Smart Import</div>
-    <ul class="squire-details-list">
+  <div class="librarian-details-section">
+    <hr class="librarian-divider">
+    <div class="librarian-details-title">Quest Smart Import</div>
+    <ul class="librarian-details-list">
       <li>Existing Quest entries are updated, not duplicated</li>
       <li>Progress and states are preserved</li>
       <li>Scene pins are merged intelligently</li>
       <li>Pin positions and associations maintained</li>
     </ul>
-    <hr class="squire-divider">
+    <hr class="librarian-divider">
   </div>
   {{/if}}
 
@@ -70,7 +70,7 @@
   {{!-- ************* EXPORT ************* --}}
 
   {{!-- Title --}}
-  <div class="squire-export-title">
+  <div class="librarian-export-title">
      {{#if (eq type "quests")}}
       Quests and Scene Pins JSON
      {{else if (eq type "codex")}}
@@ -79,14 +79,14 @@
   </div>
   
   {{!-- JSON Text --}}
-  <textarea id="{{jsonOutputId}}" class="squire-export-textarea">{{exportData}}</textarea>
+  <textarea id="{{jsonOutputId}}" class="librarian-export-textarea">{{exportData}}</textarea>
 
   {{!-- Export Summary --}}
   {{#if exportSummary}}
-  <div class="squire-export-summary">
-    <hr class="squire-divider">
-    <div class="squire-export-summary-title">Export Summary</div>
-    <ul class="squire-export-summary-list">
+  <div class="librarian-export-summary">
+    <hr class="librarian-divider">
+    <div class="librarian-export-summary-title">Export Summary</div>
+    <ul class="librarian-export-summary-list">
       {{#if exportSummary.totalItems}}
         <li><strong>Total Exported:</strong> {{exportSummary.totalItems}} {{type}}</li>
       {{/if}}
@@ -100,22 +100,22 @@
         <li><strong>Timestamp:</strong> v{{exportSummary.exportVersion}} at {{exportSummary.timestamp}}</li>
       {{/if}}
     </ul>
-    <hr class="squire-divider">
+    <hr class="librarian-divider">
   </div>
   {{/if}}
   
   {{#if scenePins}}
     {{#if hasScenePins}}
-      <div class="squire-scene-pins-section">
-        <div class="squire-scene-pins-title">Scene Pins:</div>
-        {{#each scenePins}}<span class="squire-scene-pins-label squire-scene-pins-success">{{this.sceneName}}</span>{{#unless @last}}, {{/unless}}{{/each}}
-        <hr class="squire-divider">
+      <div class="librarian-scene-pins-section">
+        <div class="librarian-scene-pins-title">Scene Pins:</div>
+        {{#each scenePins}}<span class="librarian-scene-pins-label librarian-scene-pins-success">{{this.sceneName}}</span>{{#unless @last}}, {{/unless}}{{/each}}
+        <hr class="librarian-divider">
       </div>
     {{else}}
-      <div class="squire-scene-pins-section">
-        <div class="squire-scene-pins-title">Scene Pins:</div>
-        <span class="squire-scene-pins-label squire-scene-pins-warning">No scenes currently have {{type}} pins placed.</span>
-        <hr class="squire-divider">
+      <div class="librarian-scene-pins-section">
+        <div class="librarian-scene-pins-title">Scene Pins:</div>
+        <span class="librarian-scene-pins-label librarian-scene-pins-warning">No scenes currently have {{type}} pins placed.</span>
+        <hr class="librarian-divider">
       </div>
     {{/if}}
   {{/if}}

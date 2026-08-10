@@ -1,0 +1,119 @@
+name: Release Creation
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Get version from tag
+      - name: Get Version
+        id: get-version
+        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+
+      # The tag and module.json must agree, or Foundry installs a package whose
+      # manifest claims a different version than the release it came from — and
+      # the "update available" check then never settles.
+      - name: Verify module.json matches the tag
+        env:
+          RELEASE_VERSION: ${{ steps.get-version.outputs.version }}
+        run: |
+          MANIFEST_VERSION=$(python3 -c "import json;print(json.load(open('module.json'))['version'])")
+          if [ "$MANIFEST_VERSION" != "$RELEASE_VERSION" ]; then
+            echo "::error::module.json version is $MANIFEST_VERSION but the tag is v$RELEASE_VERSION."
+            exit 1
+          fi
+          echo "module.json and tag agree on $RELEASE_VERSION"
+
+      # Create zip file
+      #
+      # Ships only what Foundry loads plus what a user needs in hand: `macros/`
+      # carries the Squire migrations, which are useless to someone who only has
+      # the installed module. `documents/` (design notes) and `testing/`
+      # (pre-flight + manual checklist) are deliberately excluded — they are for
+      # working on the module, not running it.
+      - name: Create Zip File
+        run: |
+          zip -r coffee-pub-librarian.zip \
+            module.json \
+            CHANGELOG.md \
+            LICENSE \
+            README.md \
+            scripts/ \
+            styles/ \
+            templates/ \
+            macros/ \
+            prompts/ \
+            -x "*.git*" -x "*.github*" -x "*node_modules*" -x "*dist*" -x "*.vscode*"
+
+      # GitHub release bodies are capped at 125000 characters; a full CHANGELOG
+      # will exceed that eventually, so only the section for this version ships.
+      - name: Prepare release notes
+        env:
+          RELEASE_VERSION: ${{ steps.get-version.outputs.version }}
+        run: |
+          python3 << 'PY'
+          import os, re, sys
+          from pathlib import Path
+
+          version = os.environ["RELEASE_VERSION"].strip()
+          repo = os.environ.get("GITHUB_REPOSITORY", "")
+          tag = os.environ.get("GITHUB_REF_NAME", f"v{version}")
+
+          with open("CHANGELOG.md", encoding="utf-8") as f:
+              lines = f.readlines()
+
+          heading = re.compile(rf"^##\s*\[{re.escape(version)}\]\s*$")
+
+          start = next((i for i, line in enumerate(lines) if heading.match(line.rstrip("\n"))), None)
+
+          if start is None:
+              link = f"https://github.com/{repo}/blob/{tag}/CHANGELOG.md" if repo else "CHANGELOG.md in the attached zip"
+              body = (
+                  f"See [{tag} CHANGELOG]({link}) for release notes.\n\n"
+                  f"_(No `## [{version}]` section found at the top of CHANGELOG.md.)_"
+              )
+              Path("release-body.md").write_text(body, encoding="utf-8")
+              sys.exit(0)
+
+          end = len(lines)
+          next_heading = re.compile(r"^##\s*\[")
+          for j in range(start + 1, len(lines)):
+              if next_heading.match(lines[j].rstrip("\n")):
+                  end = j
+                  break
+
+          section = "".join(lines[start:end]).strip()
+          max_len = 120_000
+          if len(section) > max_len:
+              section = (
+                  section[: max_len - 200]
+                  + "\n\n… _(truncated for GitHub release body limit; full file is in the zip.)_"
+              )
+
+          Path("release-body.md").write_text(section, encoding="utf-8")
+          PY
+
+      # Create release
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          files: |
+            coffee-pub-librarian.zip
+            module.json
+          draft: false
+          prerelease: false
+          name: Version ${{ steps.get-version.outputs.version }}
+          body_path: release-body.md

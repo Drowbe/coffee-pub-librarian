@@ -29,3 +29,38 @@ smaller one.
 The dividing line the suite settled on: **owning a document subtype means owning
 a domain.** Codex declares one. That is what makes this a module rather than a
 panel.
+
+## Installation
+
+1. Inside Foundry VTT, select the **Game Modules** tab in the Configuration and Setup menu.
+2. Click **Install Module** and enter the following URL:
+   `https://github.com/Drowbe/coffee-pub-librarian/releases/latest/download/module.json`
+3. Click **Install** and wait for installation to complete.
+
+## Dependencies
+
+- [Coffee Pub Blacksmith](https://github.com/Drowbe/coffee-pub-blacksmith) **13.12.2 or later** — required. Librarian uses its window framework, pins, tags, menubar and dialog APIs, and will not start without it.
+- Foundry VTT v13 (v14 declared as maximum).
+
+## Migrating from Coffee Pub Squire
+
+Codex and Quests used to live in Squire. If you are coming from a world that ran them there,
+**run the migration macros before updating Squire past the release that drops them** — they are
+in `macros/`, and each defaults to a dry run so you can read the report first.
+
+| Macro | What it moves |
+|---|---|
+| `migrate-quests-from-squire.js` | Quest journal setting, categories, page and per-user flags, and re-stamps quest/objective pins |
+| `migrate-codex-from-squire.js` | Codex journal setting, per-user flags, codex pins, **and re-types every codex page** from Squire's page subtype to Librarian's |
+
+Both need **both modules enabled** when they run. Two things about the codex one specifically:
+
+- It rewrites the `type` of live documents, because codex entries are a declared page subtype
+  rather than plain text pages. It updates in place so page ids survive — codex pins reference
+  their page by uuid — and backs up each page's original type and data in a flag, so setting
+  `REVERT = true` puts everything back.
+- Foundry reads `documentTypes` when the **server** loads module manifests. A browser refresh is
+  not enough after installing Librarian: return to Setup and re-enter the world, or the migration
+  will (correctly) refuse to run and tell you so.
+
+Migration is per world. A world that has not run it still has content addressed to Squire.

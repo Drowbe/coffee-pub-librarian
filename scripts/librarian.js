@@ -1,11 +1,11 @@
-import { MODULE } from './const.js';
+import { MODULE, TEMPLATES, WINDOWS } from './const.js';
+import { registerSettings } from './settings.js';
 
 /**
  * Entry point.
  *
- * Nothing is registered here yet. Codex and Quests arrive from Squire in the
- * first content commits; this establishes the module, its dependency on
- * Blacksmith, and the readiness contract every other Coffee Pub module follows.
+ * Quests are the first feature to arrive from Squire. Codex follows, and brings
+ * the codex page subtype and its migration with it.
  */
 
 function getBlacksmith() {
@@ -14,10 +14,9 @@ function getBlacksmith() {
 
 /**
  * Blacksmith publishes its API during its own ready hook, which may run after
- * ours. Every async ready path needs its own wait rather than assuming a
- * previous one has already finished — and an ES module that throws during
- * evaluation is dead for the rest of the session, so failures are logged and
- * absorbed rather than thrown.
+ * ours. Every async ready path needs its own wait rather than assuming an
+ * earlier one has finished — and an ES module that throws during evaluation is
+ * dead for the rest of the session, so failures are logged, not thrown.
  */
 async function waitForBlacksmith() {
     if (globalThis.BlacksmithAPI?.waitForReady) {
@@ -31,7 +30,7 @@ async function waitForBlacksmith() {
 }
 
 Hooks.once('init', () => {
-    console.log(`${MODULE.TITLE} | Initialising`);
+    registerSettings();
 });
 
 Hooks.once('ready', async () => {
@@ -49,6 +48,65 @@ Hooks.once('ready', async () => {
             name: MODULE.NAME,
             version: game.modules.get(MODULE.ID)?.version
         });
+    }
+
+    // The quest list renders one partial per entry.
+    try {
+        const questEntry = await fetch(TEMPLATES.PARTIAL_QUEST_ENTRY).then(r => r.text());
+        Handlebars.registerPartial('quest-entry', questEntry);
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to register the quest-entry partial:`, error);
+    }
+
+    // Browser window + its menubar launcher.
+    try {
+        const { registerQuestBrowserWindow, openQuestBrowser } = await import('./window-quest-browser.js');
+        registerQuestBrowserWindow();
+        game.modules.get(MODULE.ID).api = game.modules.get(MODULE.ID).api || {};
+        game.modules.get(MODULE.ID).api.openQuestBrowser = openQuestBrowser;
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to register the quest browser:`, error);
+    }
+
+    // Single-quest editor.
+    try {
+        const { registerQuestWindow, openQuestWindow } = await import('./window-quest.js');
+        registerQuestWindow();
+        game.modules.get(MODULE.ID).api.openQuestWindow = openQuestWindow;
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to register the quest window:`, error);
+    }
+
+    if (typeof blacksmith.registerMenubarTool === 'function') {
+        try {
+            blacksmith.registerMenubarTool('librarian-quests', {
+                icon: 'fa-solid fa-flag',
+                name: 'librarian-quests',
+                title: 'Quests',
+                tooltip: 'Open the quest log',
+                onClick: async () => {
+                    const open = game.modules.get(MODULE.ID)?.api?.openQuestBrowser;
+                    if (typeof open !== 'function') {
+                        ui.notifications.warn('The quest log is not ready yet.');
+                        return;
+                    }
+                    await open('quest');
+                },
+                zone: 'middle',
+                group: 'campaign',
+                groupOrder: 20,
+                order: 204,
+                moduleId: MODULE.ID,
+                gmOnly: false,
+                leaderOnly: false,
+                visible: true,
+                toggleable: false,
+                active: false
+            });
+            blacksmith.renderMenubar?.(true);
+        } catch (error) {
+            console.error(`${MODULE.TITLE} | Failed to register the Quests menubar tool:`, error);
+        }
     }
 
     console.log(`${MODULE.TITLE} | Ready`);

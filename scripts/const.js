@@ -29,3 +29,18 @@ export const CODEX_PAGE_TYPE = `${MODULE.ID}.codex`;
 
 /** The subtype Squire owned before the split, migrated from, never written. */
 export const LEGACY_CODEX_PAGE_TYPE = 'coffee-pub-squire.codex';
+
+/** Template paths, mirrored from the manifest layout. */
+export const TEMPLATES = {
+    PANEL_QUEST: `modules/${MODULE.ID}/templates/panel-quest.hbs`,
+    WINDOW_QUEST: `modules/${MODULE.ID}/templates/window-quest.hbs`,
+    WINDOW_QUEST_BROWSER: `modules/${MODULE.ID}/templates/window-quest-browser.hbs`,
+    TOOLTIP_PIN_QUEST_OBJECTIVE: `modules/${MODULE.ID}/templates/tooltip-pin-quests-objective.hbs`,
+    PARTIAL_QUEST_ENTRY: `modules/${MODULE.ID}/templates/partials/quest-entry.hbs`
+};
+
+/** Window ids, registered with Blacksmith's window registry. */
+export const WINDOWS = {
+    QUEST_BROWSER: `${MODULE.ID}-quest-browser`,
+    QUEST_EDITOR: `${MODULE.ID}-quest-editor`
+};

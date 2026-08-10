@@ -1,0 +1,8 @@
+/* ==================================================================
+   ===== COFFEE PUB LIBRARIAN =======================================
+   ==================================================================
+
+   Per-area stylesheets are imported here; the manifest loads only
+   this file. Blacksmith supplies the window chrome and design tokens,
+   so rules here should skin content rather than restate the frame.
+   ================================================================== */

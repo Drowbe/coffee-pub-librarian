@@ -43,6 +43,12 @@ Hooks.once('ready', async () => {
         return;
     }
 
+    // Established before anything that can throw: registration blocks below
+    // each write to it, and a failure in one used to leave the next assigning
+    // to undefined — turning one broken registration into several.
+    const module = game.modules.get(MODULE.ID);
+    module.api = module.api ?? {};
+
     if (typeof blacksmith.registerModule === 'function') {
         blacksmith.registerModule(MODULE.ID, {
             name: MODULE.NAME,
@@ -62,8 +68,7 @@ Hooks.once('ready', async () => {
     try {
         const { registerQuestBrowserWindow, openQuestBrowser } = await import('./window-quest-browser.js');
         registerQuestBrowserWindow();
-        game.modules.get(MODULE.ID).api = game.modules.get(MODULE.ID).api || {};
-        game.modules.get(MODULE.ID).api.openQuestBrowser = openQuestBrowser;
+        module.api.openQuestBrowser = openQuestBrowser;
     } catch (error) {
         console.error(`${MODULE.TITLE} | Failed to register the quest browser:`, error);
     }
@@ -72,7 +77,7 @@ Hooks.once('ready', async () => {
     try {
         const { registerQuestWindow, openQuestWindow } = await import('./window-quest.js');
         registerQuestWindow();
-        game.modules.get(MODULE.ID).api.openQuestWindow = openQuestWindow;
+        module.api.openQuestWindow = openQuestWindow;
     } catch (error) {
         console.error(`${MODULE.TITLE} | Failed to register the quest window:`, error);
     }

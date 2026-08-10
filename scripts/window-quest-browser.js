@@ -182,7 +182,7 @@ export async function openQuestBrowser(kind) {
 }
 
 /** Register all three with Blacksmith's window registry. */
-export function registerQuestBrowserWindows() {
+export function registerQuestBrowserWindow() {
     const blacksmith = getBlacksmith();
     if (!blacksmith?.registerWindow) return false;
 

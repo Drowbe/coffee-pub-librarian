@@ -1,5 +1,11 @@
 # Coffee Pub Librarian
 
+![Latest Release](https://img.shields.io/github/v/release/Drowbe/coffee-pub-librarian)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Drowbe/coffee-pub-librarian/release.yml)
+![GitHub all releases](https://img.shields.io/github/downloads/Drowbe/coffee-pub-librarian/total)
+![MIT License](https://img.shields.io/badge/license-MIT-blue)
+![Foundry v13](https://img.shields.io/badge/foundry-v13-green)
+
 Campaign knowledge for Foundry VTT: a **codex** of people, places, factions and
 artifacts, and the **quests** that run through them.
 
@@ -32,10 +38,23 @@ panel.
 
 ## Installation
 
+**Manifest URL** — paste this into Foundry:
+
+```
+https://github.com/Drowbe/coffee-pub-librarian/releases/latest/download/module.json
+```
+
 1. Inside Foundry VTT, select the **Game Modules** tab in the Configuration and Setup menu.
-2. Click **Install Module** and enter the following URL:
-   `https://github.com/Drowbe/coffee-pub-librarian/releases/latest/download/module.json`
+2. Click **Install Module** and paste the manifest URL above.
 3. Click **Install** and wait for installation to complete.
+
+Prefer to install by hand? Download
+[coffee-pub-librarian.zip](https://github.com/Drowbe/coffee-pub-librarian/releases/latest/download/coffee-pub-librarian.zip)
+and unpack it into your Foundry `Data/modules/` directory, so that `module.json` sits at
+`Data/modules/coffee-pub-librarian/module.json`.
+
+All releases, with their changelogs, are listed on the
+[Releases page](https://github.com/Drowbe/coffee-pub-librarian/releases).
 
 ## Dependencies
 

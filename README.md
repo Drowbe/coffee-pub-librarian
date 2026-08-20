@@ -22,8 +22,9 @@ supplies the window chrome, pins, tags and shared APIs.
 
 Early. The module scaffold is in place; Codex and Quests are moving here from
 Coffee Pub Squire, where they grew up inside a character tray that was never the
-right home for campaign content. See `TODO.md` for the inventory and the
-migration plan.
+right home for campaign content. See [`documents/TODO.md`](documents/TODO.md) for
+the inventory, and [`documents/migration-runbook.md`](documents/migration-runbook.md)
+for the migration plan.
 
 ## Why not Squire
 

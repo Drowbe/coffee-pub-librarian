@@ -1573,7 +1573,7 @@ export class CodexPanel {
             title: 'Import Codex from JSON',
             width: 600,
             resizable: true,
-            content: await renderTemplate('modules/coffee-pub-librarian/templates/window-import-export.hbs', {
+            content: await renderTemplate(`modules/${MODULE.ID}/templates/window-import-export.hbs`, {
                 type: 'codex',
                 isImport: true,
                 isExport: false,

@@ -43,6 +43,11 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
     constructor(entry = null, options = {}) {
         const opts = foundry.utils.mergeObject({}, options);
         opts.id = opts.id ?? `${CODEX_WINDOW_ID}-${foundry.utils.randomID().slice(0, 8)}`;
+        // Each editor gets a fresh id so several can be open at once, which means
+        // they must NOT persist position: windowPositionKey falls back to the class
+        // name (window-base.js `_positionKey`), so siblings would share one key and
+        // each new window would open on top of the last one the user moved.
+        opts.rememberPosition = false;
         opts.position = foundry.utils.mergeObject(
             foundry.utils.mergeObject({}, CodexWindow.DEFAULT_OPTIONS.position ?? {}),
             opts.position || {}

@@ -436,7 +436,7 @@ async function _warnIfCodexPinVisibilityEdited(evt) {
 
         ui.notifications.warn(
             `Codex pin visibility follows the codex entry, not the pin — this change won't reach players and will be overwritten. `
-            + `Use the visibility toggle on "${page.name}" in the Squire codex tray instead.`
+            + `Use the visibility toggle on "${page.name}" in the codex browser instead.`
         );
     } catch (e) {
         console.warn('Coffee Pub Librarian | _warnIfCodexPinVisibilityEdited:', e);

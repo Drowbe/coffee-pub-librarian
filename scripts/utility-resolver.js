@@ -2,9 +2,9 @@
  * Plain text -> document links.
  *
  * Blacksmith owns the GM's compendium mapping and the name -> UUID resolver.
- * Squire never searches packs, reads Blacksmith's settings, or hand-builds
- * search order. See documents/architecture-squire.md and the Blacksmith repo's
- * documentation/api/api-compendiums.md.
+ * Librarian never searches packs, reads Blacksmith's settings, or hand-builds
+ * search order. See documents/architecture/architecture-codex.md and the
+ * Blacksmith repo's documentation/api/api-compendiums.md.
  */
 
 import { MODULE } from './const.js';

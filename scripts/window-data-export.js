@@ -38,6 +38,9 @@ export class DataExportWindow extends BlacksmithWindowBaseV2 {
     constructor(options = {}) {
         const opts = foundry.utils.mergeObject({}, options);
         opts.id = opts.id ?? `${MODULE.ID}-data-export-${foundry.utils.randomID().slice(0, 8)}`;
+        // See CodexWindow: a per-instance id means siblings would otherwise share
+        // one class-derived position key and overwrite each other's saved position.
+        opts.rememberPosition = false;
         opts.position = foundry.utils.mergeObject(
             foundry.utils.mergeObject({}, DataExportWindow.DEFAULT_OPTIONS.position ?? {}),
             opts.position || {}

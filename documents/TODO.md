@@ -30,15 +30,9 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 
 | ID | Sev | Area | Item | Size |
 |---|---|---|---|---|
-| **C1** | Critical | Windows | `openQuestBrowser` is undefined — Blacksmith window registry opener throws | S |
-| **C2** | Critical | Import | `prompts/prompt-codex.txt` does not exist; Copy Template copies an error string | S |
-| **C3** | Critical | Branding | Squire named in a user-facing notification and a thrown error | S |
-| **H1** | High | Blacksmith API | Librarian's Handlebars helpers shadow Blacksmith's global helpers | S |
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
-| **H3** | High | Blacksmith API **[EXT]** | Tag taxonomy still says `coffee-pub-squire.*` — needs `coffee-pub-librarian.*` | S |
-| **H4** | High | Blacksmith API | `getPartyActors()` reinvents the roster fallback — use `api.party.acting()` | S |
 | **H5** | High | Blacksmith API | CSS uses 69 raw hex literals and 3 design tokens | M |
-| **H6** | High | Blacksmith API **[EXT]** | `api.importer` is documented but unpublished — ~600 lines duplicated here | M |
+| **H6** | High | Blacksmith API | Adopt `api.importer` — now shipped; drops ~600 duplicated lines | M |
 | **H7** | High | Codex | `related` has no edit or view UI anywhere | M |
 | **H8** | High | Perf | 31 `cloneNode`/`replaceChild` sites in the render path do nothing | S |
 | **H9** | High | Perf | `enrichHTML` runs per link per render; output is deterministic | S |
@@ -53,9 +47,8 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **M7** | Medium | Quests | `getQuestStatusDisplayLabel` doc says "Complete", returns "Succeeded" | S |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **M9** | Medium | Naming | `squireSkipCodexRender` outlived its module | S |
-| **M10** | Medium | Windows | Three multi-instance windows share one saved position key | S |
+| **M11** | Medium | Data safety | A codex export taken while Librarian is disabled silently omits everything | S |
 | **L1** | Low | v14 | Bare `FilePicker` and `saveDataToFile` globals | S |
-| **L2** | Low | Docs | `utility-resolver.js` cites `documents/architecture-squire.md`, which does not exist | S |
 | **L3** | Low | Docs | Doc paths drifted after the `documents/` reorganisation | S |
 | **L4** | Low | Docs | CHANGELOG 13.0.0 omits Auto-Link, `related`, and retain-unresolved links | S |
 | **L5** | Low | Testing | No link-resolution test fixture | S |
@@ -91,78 +84,12 @@ Two things about it that outlive the run:
   helpers, partials and CSS class names are world-global, so while both modules
   run Librarian can be silently borrowing Squire's. That is not hypothetical: it
   is how the missing `registerHelpers` and the unstyled import/export dialog were
-  found. See also **H1**, which is the same failure mode pointed at Blacksmith.
-
----
-
-## Critical
-
-Broken in shipped code.
-
-### C1 — `openQuestBrowser` is undefined
-
-[`window-campaign-browser.js:200`](../scripts/window-campaign-browser.js#L200) registers
-each browser with Blacksmith's window registry using an opener that calls
-`openQuestBrowser(kind)`. That function does not exist in the file — it was renamed
-to `openCampaignBrowser` in 13.0.0 and this call site was missed. Any caller going
-through `blacksmith.openWindow('coffee-pub-librarian-quest-browser')` gets a
-`ReferenceError`.
-
-It has gone unnoticed because the menubar tools call
-`module.api.openCampaignBrowser` directly and never route through the registry.
-
-**Fix:** rename the call. **Also:** add a smoke check that opens both browsers
-through `blacksmith.openWindow` rather than through the module API, since that is
-the path nothing currently exercises.
-
-### C2 — `prompts/prompt-codex.txt` does not exist
-
-[`panel-codex.js:1566`](../scripts/panel-codex.js#L1566) fetches
-`modules/coffee-pub-librarian/prompts/prompt-codex.txt`. Only `prompt-quests.txt`
-shipped. The fetch fails, `template` is set to the literal string
-`Failed to load prompt-codex.txt.`, and **Copy Template** in the codex import
-dialog puts that string on the GM's clipboard — silently, with an
-"Template copied to clipboard!" toast.
-
-**Fix:** ship the prompt (it exists in Squire's history), and make the failure
-path refuse to copy rather than copying its own error message.
-
-### C3 — Squire named in user-facing strings
-
-- [`manager-codex-pins.js:439`](../scripts/manager-codex-pins.js#L439) — a GM warning
-  tells them to *"Use the visibility toggle … in the Squire codex tray instead."*
-- [`window-campaign-browser.js:14`](../scripts/window-campaign-browser.js#L14) — thrown
-  error is prefixed `Coffee Pub Squire |`.
-- [`page-codex-fields-edit.hbs:10`](../templates/page-codex-fields-edit.hbs#L10) —
-  placeholder reads *"shown in the Squire tray."*
+  found. Librarian no longer re-registers Blacksmith's global helpers, so this step
+  is now checking that the dependency on Blacksmith's set actually holds.
 
 ---
 
 ## High
-
-### H1 — Handlebars helpers shadow Blacksmith's globals
-
-[`helpers.js:626`](../scripts/helpers.js#L626) registers 17 global Handlebars
-helpers. Five of them — `add`, `divide`, `eq`, `includes`, `multiply` — are names
-Blacksmith already registers globally and **unconditionally** at `init`
-(`api-core.md`, "Handlebars helpers"). Handlebars is last-registration-wins, so
-whichever module inits last defines them **for every module in the world**, not
-just for Librarian.
-
-It is currently benign only because the implementations happen to be equivalent.
-Any future divergence in either module silently breaks the other's templates.
-
-Worse, the duplication buys nothing: **only one of the 17** (`default`) is used by
-any Librarian template. `concat`, `copyToClipboard`, `formatNumber`,
-`formatTimestamp`, `isArray`, `lte`, `renderTask`, `some`, `times`, `toLowerCase`,
-`toUpperCase` are used by nothing at all, and `includes` is registered twice in the
-same function.
-
-**Fix:** delete every helper Blacksmith already provides and every helper nothing
-uses. Depend on Blacksmith's globals — they are documented as unconditional, and
-Blacksmith is a hard dependency. The 13.0.0 rationale ("Squire registers its own
-set, so Librarian was borrowing them") was right about the problem and wrong about
-the fix: the answer was to depend on Blacksmith, not to grow a third copy.
 
 ### H2 — Adopt `api.tags` and TagWidget
 
@@ -180,8 +107,17 @@ rename/delete that propagates to every record, and an embeddable `TagWidget` —
 against which Librarian's hand-built tag cloud, chip input and filter are a
 reimplementation.
 
-**Blocked on H3.** Do this as one change across both features rather than twice;
-doing it during **A1** would avoid migrating quest tags a second time.
+**Unblocked.** Blacksmith added the taxonomy contexts and ruled on the key
+question: **entities share the same context key the pins mirror uses** —
+`coffee-pub-librarian.codex`, `.quest` and `.objective`, all three now in
+`resources/tag-taxonomy.json`. One vocabulary per domain; a codex entry's tags and
+its pin's tags are the same tags.
+
+(Blacksmith also retired `coffee-pub-squire.note` in the same pass — Notes are
+theirs now, under `coffee-pub-blacksmith.note`.)
+
+Do this as one change across both features rather than twice; doing it during
+**A1** would avoid migrating quest tags a second time.
 
 **Expect to be TagWidget's first consumer.** `templates/partials/tag-widget.hbs`
 and `widget-tags.css` are complete and the stylesheet does load, but no Blacksmith
@@ -191,40 +127,6 @@ shaking out bugs, and note two documented traps up front: pass the context
 you get a silent empty div), and `TagWidget.activate()` is the entire event layer —
 without it the widget renders inert. Filter mode is documented as **not
 implemented**; do not use it.
-
-### H3 — [EXT] Tag taxonomy is still addressed to Squire
-
-`../coffee-pub-blacksmith/resources/tag-taxonomy.json` defines
-`coffee-pub-squire.codex`, `coffee-pub-squire.quest` and
-`coffee-pub-squire.objective`. Those domains moved here in 13.0.0.
-
-**Request:** Blacksmith adds `coffee-pub-librarian.codex`,
-`coffee-pub-librarian.quest` and `coffee-pub-librarian.objective` contexts, and
-decides whether the Squire entries are retired or aliased. Note the protected-tag
-rule — anything Librarian checks by value (`main`, `side`) must be
-`protected: true`.
-
-`tags.register()` can carry this at runtime for development, but a shipped module
-belongs in the JSON.
-
-### H4 — `getPartyActors()` reinvents the roster fallback
-
-[`helpers.js:234`](../scripts/helpers.js#L234) reads
-`campaign.getParty()?.members`, then falls back to a hand-rolled
-`game.actors.filter(a => a.type === 'character' && a.hasPlayerOwner && !a.isToken)`.
-
-`api-party.md` describes that fallback as *"the part every consumer reinvents
-slightly differently, which is most of why this exists"*, and draws a distinction
-Librarian's version misses: `acting()` (player characters — who can act on their
-own behalf) versus `resting()` (party creatures, including familiars and
-companions). Auto-discovery wants `acting()`.
-
-`campaign.getParty()` returns the *configured* party block from campaign settings;
-`api.party` returns the live roster with the fallback owned upstream. They are not
-interchangeable.
-
-**Fix:** `blacksmith.party.acting()`, and surface `hasPrimaryParty()` in the
-auto-discovery warning so "no party members found" explains itself.
 
 ### H5 — CSS ignores the design system
 
@@ -240,26 +142,49 @@ inherited from the Squire copy.
 fallback so the module degrades if Blacksmith is disabled. Read
 `design-system/design-extending.md` first.
 
-### H6 — [EXT] `api.importer` is documented but unpublished
+### H6 — Adopt `api.importer`
 
-`api-importer.md` describes a full import/validate/template contract, but is marked
-*"Proposed contract. This namespace is not yet guaranteed"* — and `api.importer` is
-genuinely absent from Blacksmith's API object.
+**Shipped and available.** Blacksmith published `ImporterAPI` on `module.api`
+(`scripts/api-importer.js`, wired at `blacksmith.js:1168`):
 
-The cost is here: ~600 lines of near-duplicate import/export dialog across
+| Method | Use |
+|---|---|
+| `importer.registerKind(kind)` | Register a JSON import kind |
+| `importer.openWindow(kindId)` | Open the shared import window for it |
+| `importer.getKind(kindId)` | Look one up |
+| `importer.parsePayload(raw)` | Parse clipboard/file JSON to entries; throws on malformed input |
+| `importer.attachButton(html, kindId)` | Insert an Import button into a directory header |
+
+The descriptor takes **`onValidateEntry` / `onImportEntry` callbacks, so document
+construction stays here.** Blacksmith never needs to know the codex data model —
+which matters, because codex entries are our declared subtype and by Blacksmith's
+own discriminator that schema does not belong in the hub.
+
+**What we delete:** ~600 lines of near-duplicate dialog across
 [`panel-codex.js:1563-1795`](../scripts/panel-codex.js#L1563-L1795) and
 [`panel-quest.js:867-1105`](../scripts/panel-quest.js#L867-L1105) — file picking,
-JSON validation, progress reporting, duplicate-name warnings and template copying,
-written twice.
+JSON parse and validation, the paste textarea, progress reporting, duplicate-name
+warnings, prompt-template copying. Written twice and already diverging.
 
-**Request:** publish `api.importer` with `journal.codex` and `journal.quest`
-profiles. Failing that, expose the shared importer window Blacksmith already drives
-internally, so Librarian stops reimplementing the dialog.
+**What we keep,** inside `onImportEntry`: name→UUID resolution through
+`api.compendiums`, `mergeCodexLinks`, retyping legacy text pages to our subtype, and
+page sorting.
 
-The note in [`helpers.js`](../scripts/helpers.js) about `showBlacksmithWait` being a
-stopgap "while their eventual importer replacement is blocked on the public
-Blacksmith Importer API" is still accurate — there is now a documented contract to
-converge on.
+Three notes for whoever picks this up:
+
+- **Set `showInSwitcher: false`** unless we actually want Codex and Quests appearing
+  in the GM's item-directory importer dropdown. Default is `true`.
+- **Read the API doc locally**, at
+  `../coffee-pub-blacksmith/documentation/api/api-importer.md`. Blacksmith is
+  holding it off the wiki (`wiki-sync.mjs:105`) even though it now documents a
+  shipped API; they have a TODO filed for the ordering. Do not go looking for it
+  online.
+- **Export is not in scope** and nothing is planned — see **M11**. Our export stays
+  ours for now; do not wait for a counterpart.
+
+Once this lands, `showBlacksmithWait` in [`helpers.js`](../scripts/helpers.js) loses
+its only two callers and should go with it, along with its stale header comment
+about being "blocked on the public Blacksmith Importer API".
 
 ### H7 — `related` has no edit or view UI
 
@@ -452,20 +377,32 @@ An update-option name that outlived its module. `panel-codex.js` sends it
 halves in one commit — small, but it must be atomic or the codex visibility toggle
 starts triggering full re-renders again.
 
-### M10 — Multi-instance windows share one saved position key
+### M11 — Export is unsafe while Librarian is disabled
 
-`CodexWindow`, `QuestWindow` and `DataExportWindow` each mint a random instance id
-(`${BASE}-${randomID().slice(0, 8)}`) so several can be open at once, but none sets
-`windowPositionKey` or `rememberPosition: false`.
+Raised by Blacksmith while declining export from the Importer API scope, and it
+lands squarely on us because **we are the module that declares a page subtype.**
 
-`window-base.js:135` falls back to `blacksmith-win-pos-${this.constructor.name}`,
-so every instance of a class shares one key — and per `api-window.md`, siblings then
-overwrite each other's saved position and the second opens on top of the first.
+With the owning module disabled, Foundry refuses subtype pages at world load. So an
+export taken in that state **silently omits every codex page and reports success** —
+the worst shape a backup failure can take, because it looks like it worked and is
+only discovered when someone tries to restore it.
 
-**Fix:** `rememberPosition: false` on all three. They are transient editors, not
-placed tools. `CampaignBrowserWindow` already does this correctly — it sets a
-per-kind key ([:94](../scripts/window-campaign-browser.js#L94)) — so this is the
-odd-one-out rather than a module-wide pattern.
+Not live in our own export path: `_openExportCodexDialog` runs from the codex panel,
+which cannot open unless Librarian is enabled. The exposure is everything else — a
+world backup, Foundry's own journal export, a compendium export, or any general
+exporter that ships later. Blacksmith's open question lives in their `TODO.md` under
+*"Import/export and module-owned document subtypes"*; nothing is planned, so this is
+ours to guard rather than to wait on.
+
+Two things to do:
+
+- **Make our own export assert its own completeness.** Compare the exported entry
+  count against the number of `CODEX_PAGE_TYPE` pages in the configured journal and
+  refuse — not warn — on a mismatch. Cheap, and it converts a silent partial into a
+  loud one.
+- **Say it in the runbook.** `migration-runbook.md` already has a "Housekeeping,
+  later" section about the `squireMigrationBackup` flag; the neighbouring rule is
+  *never take a codex backup with Librarian disabled.*
 
 ---
 
@@ -486,13 +423,6 @@ shims that will not survive it:
 Both `FilePicker` sites are guarded with `typeof FilePicker !== 'function'`, so the
 failure mode is a silent missing feature rather than an error. Blacksmith ships
 `documentation/plans/migration-v14.md` — read it before doing this.
-
-### L2 — Stale doc reference in code
-
-[`utility-resolver.js:6`](../scripts/utility-resolver.js#L6) cites
-`documents/architecture-squire.md`, which has never existed in this repo. The same
-header still says "Squire never searches packs" throughout. Retarget to
-`documents/architecture/architecture-codex.md` and reword.
 
 ### L3 — Doc paths drifted after the `documents/` reorganisation
 

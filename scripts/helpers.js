@@ -232,12 +232,38 @@ export async function copyToClipboard(text) {
  * @returns {Actor[]}
  */
 export function getPartyActors() {
+  // `acting()` is the party's player characters — who can act on their own
+  // behalf. Deliberately not `resting()`, which also returns NPC members
+  // (familiars, companions, hirelings): a familiar rests with the party and
+  // cannot own the item that reveals a codex entry.
+  //
+  // Blacksmith owns the "no primary party configured" fallback, which is the
+  // part every consumer used to reinvent slightly differently. Do not add one
+  // here — surface `hasPrimaryParty()` instead if a caller needs to explain an
+  // odd roster.
+  const acting = getBlacksmith()?.party?.acting?.();
+  if (Array.isArray(acting) && acting.length) return acting;
+
+  // Legacy path for a Blacksmith predating `api.party`. Remove once the
+  // manifest's Blacksmith minimum is raised past the release that added it.
   const members = getBlacksmith()?.campaign?.getParty?.()?.members;
   if (Array.isArray(members) && members.length) {
     const actors = members.map(member => game.actors.get(member.id)).filter(Boolean);
     if (actors.length) return actors;
   }
   return game.actors.filter(actor => actor?.type === 'character' && actor?.hasPlayerOwner && !actor?.isToken);
+}
+
+/**
+ * Whether Blacksmith has a primary party configured.
+ *
+ * Worth showing in a GM-facing message: "no primary party set" explains an odd
+ * roster better than the roster does. Returns true when the answer is unknown,
+ * so a caller never warns about something it cannot verify.
+ */
+export function hasPrimaryParty() {
+  const has = getBlacksmith()?.party?.hasPrimaryParty;
+  return typeof has === 'function' ? !!has() : true;
 }
 
 /**
@@ -623,171 +649,31 @@ export function cleanTaskText(text) {
     return text;
 }
 
+/**
+ * Handlebars helpers Librarian actually owns.
+ *
+ * Deliberately one helper. Blacksmith registers `add`, `and`, `divide`, `eq`,
+ * `gt`, `includes`, `multiply`, `or`, `round`, `subtract`, `formatDamage`,
+ * `formatTime` and `isImageUrl` globally and unconditionally during its own
+ * `init` (see its documentation/api/api-core.md), and Foundry supplies `if`,
+ * `each`, `unless`, `gte`, `lookup` and the rest. Handlebars is a single global
+ * namespace with last-registration-wins semantics, so re-registering any of
+ * those names does not give Librarian its own copy — it silently replaces
+ * Blacksmith's for EVERY module in the world.
+ *
+ * This file used to register seventeen. Five collided with Blacksmith's
+ * (`add`, `divide`, `eq`, `includes`, `multiply`), `includes` was registered
+ * twice, and exactly one of the seventeen was used by a Librarian template.
+ *
+ * Before adding one here: check Blacksmith and Foundry first, and confirm a
+ * template actually calls it. A helper nobody calls is a maintenance cost with
+ * no reader, and a helper that shadows Blacksmith's is a bug in somebody
+ * else's module.
+ */
 export const registerHelpers = function() {
-    // Helper for repeating n times
-    Handlebars.registerHelper('times', function(n, options) {
-        let result = '';
-        for (let i = 0; i < n; i++) {
-            options.data.index = i;
-            result += options.fn(this);
-        }
-        return result;
-    });
-
-    // Helper for providing a default value
+    // Used by templates/partials/quest-entry.hbs. Neither Blacksmith nor
+    // Foundry provides it.
     Handlebars.registerHelper('default', function(value, defaultValue) {
         return value ?? defaultValue;
     });
-
-    // Helper for addition
-    Handlebars.registerHelper('add', function(a, b) {
-        return a + b;
-    });
-
-    // Helper for equality comparison
-    Handlebars.registerHelper('eq', function(a, b) {
-        return a === b;
-    });
-
-    // Helper for checking if value is an array
-    Handlebars.registerHelper('isArray', function(value) {
-        return Array.isArray(value);
-    });
-
-    // Helper for less than or equal comparison
-    Handlebars.registerHelper('lte', function(a, b) {
-        return a <= b;
-    });
-
-    // Helper for multiplication
-    Handlebars.registerHelper('multiply', function(a, b) {
-        return a * b;
-    });
-
-    // Helper for division
-    Handlebars.registerHelper('divide', function(a, b) {
-        return a / b;
-    });
-
-    // Helper to check if array includes a value
-    Handlebars.registerHelper('includes', function(array, value) {
-        if (!array || !Array.isArray(array)) return false;
-        return array.includes(value);
-    });
-
-    // Helper to check if array has any items matching a condition
-    Handlebars.registerHelper('some', function(array, property, value) {
-        if (!array || !array.length) return false;
-        return array.some(item => {
-            if (property.includes('.')) {
-                const parts = property.split('.');
-                let current = item;
-                for (const part of parts) {
-                    current = current[part];
-                }
-                return current === value;
-            }
-            return item[property] === value;
-        });
-    });
-
-    // Helper to concatenate strings
-    Handlebars.registerHelper('concat', function(...args) {
-        return args.slice(0, -1).join('');
-    });
-
-    // Helper to convert string to lowercase
-    Handlebars.registerHelper('toLowerCase', function(str) {
-        return str.toLowerCase();
-    });
-
-    // Helper to convert string to uppercase
-    Handlebars.registerHelper('toUpperCase', function(str) {
-        return str.toUpperCase();
-    });
-
-    // Helper to get panel favorites from actor
-
-    // Helper to check if an array includes a value
-    Handlebars.registerHelper('includes', function(array, value) {
-        if (!Array.isArray(array)) return false;
-        return array.includes(value);
-    });
-
-    // Helper to get handle favorites from actor
-
-    // Helper to format numbers (e.g., 1000 -> 1K, 1000000 -> 1M)
-    Handlebars.registerHelper('formatNumber', function(number) {
-        if (number === undefined || number === null) return '0';
-        
-        // Convert to number if it's a string
-        number = Number(number);
-        
-        // Handle millions
-        if (Math.abs(number) >= 1000000) {
-            return (number / 1000000).toFixed(1) + 'M';
-        }
-        
-        // Handle thousands
-        if (Math.abs(number) >= 1000) {
-            return (number / 1000).toFixed(1) + 'K';
-        }
-        
-        // Add commas for thousands separator
-        return number.toLocaleString();
-    });
-
-    // Helper function to copy text to clipboard with fallbacks
-    Handlebars.registerHelper('formatTimestamp', function(timestamp) {
-    if (!timestamp) return '';
-    try {
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return timestamp; // Return as-is if invalid
-        // Format as: "Dec 19, 2024 3:45 PM"
-        return date.toLocaleString('en-US', {
-            month: 'short',
-            day: 'numeric',
-            year: 'numeric',
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-    } catch (e) {
-        return timestamp; // Return as-is on error
-    }
-});
-
-Handlebars.registerHelper('copyToClipboard', function(text) {
-        return copyToClipboard(text);
-    });
-
-    // Helper to render a task with GM hints and treasure unlocks (show treasure always for GM)
-    Handlebars.registerHelper('renderTask', function(task, isGM, options) {
-        if (!task || typeof task !== 'object') {
-            return new Handlebars.SafeString('');
-        }
-        
-        let html = '';
-        // Start the task text with tooltip if GM hint exists
-        if (isGM && task.gmHint) {
-            html += `<span data-tooltip=\"GM Note: ${task.gmHint}\">${task.text || ''}</span>`;
-        } else {
-            html += task.text || '';
-        }
-        // Only GMs see the treasure text in the objective list
-        if (isGM && Array.isArray(task.treasureUnlocks) && task.treasureUnlocks.length > 0) {
-            if (!task.completed) {
-                html += ' <span class="locked-objective-treasure">';
-                html += '<i class="fa-solid fa-lock"></i> ';
-                html += task.treasureUnlocks.join(', ');
-                html += '</span>';
-            } else {
-                html += ' <span class="unlocked-objective-treasure">';
-                html += task.treasureUnlocks.join(', ');
-                html += '</span>';
-            }
-        }
-        return new Handlebars.SafeString(html);
-    });
 };
-

@@ -11,7 +11,7 @@ const BlacksmithWindowBaseV2 = getBlacksmith()?.BlacksmithWindowBaseV2
     || getBlacksmith()?.getWindowBaseV2?.();
 
 if (!BlacksmithWindowBaseV2) {
-    throw new Error('Coffee Pub Squire | BlacksmithWindowBaseV2 is unavailable for CampaignBrowserWindow');
+    throw new Error('Coffee Pub Librarian | BlacksmithWindowBaseV2 is unavailable for CampaignBrowserWindow');
 }
 
 /**
@@ -197,7 +197,7 @@ export function registerCampaignBrowserWindows() {
         const ok = blacksmith.registerWindow(config.id, {
             moduleId: MODULE.ID,
             title: config.title,
-            open: async () => openQuestBrowser(kind)
+            open: async () => openCampaignBrowser(kind)
         });
         if (!ok) allOk = false;
     }

@@ -866,12 +866,15 @@ export class QuestPanel {
      */
     async _openImportQuestsDialog() {
         if (!game.user.isGM) return;
+        // Stays empty on failure rather than holding an error string — see the
+        // matching note in panel-codex.js _openImportCodexDialog.
         let template = '';
         try {
             const response = await fetch(`modules/${MODULE.ID}/prompts/prompt-quests.txt`);
-            template = response.ok ? await response.text() : 'Failed to load prompt-quests.txt.';
-        } catch (e) {
-            template = 'Failed to load prompt-quests.txt.';
+            if (response.ok) template = await response.text();
+            else console.error(`${MODULE.TITLE} | prompt-quests.txt failed to load: ${response.status}`);
+        } catch (error) {
+            console.error(`${MODULE.TITLE} | prompt-quests.txt failed to load:`, error);
         }
         await showBlacksmithWait({
             title: 'Import Quests and Scene Pins from JSON',
@@ -959,9 +962,11 @@ export class QuestPanel {
                 const copyTemplateButton = nativeDlgHtml.querySelector('.copy-template-button');
                 if (copyTemplateButton) {
                     copyTemplateButton.addEventListener('click', () => {
-                        const output = fillCampaignPlaceholders(template);
-                        copyToClipboard(output);
-                        ui.notifications.info('Template copied to clipboard!');
+                        if (!template) {
+                            ui.notifications.error('The quest prompt template could not be loaded. See the console for details.');
+                            return;
+                        }
+                        copyToClipboard(fillCampaignPlaceholders(template));
                     });
                 }
                 const browseFileButton = nativeDlgHtml.querySelector('.browse-file-button');

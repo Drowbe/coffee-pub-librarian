@@ -51,6 +51,9 @@ export class QuestWindow extends BlacksmithWindowBaseV2 {
     constructor(quest = null, options = {}) {
         const opts = foundry.utils.mergeObject({}, options);
         opts.id = opts.id ?? `${QUEST_WINDOW_ID}-${foundry.utils.randomID().slice(0, 8)}`;
+        // See CodexWindow: a per-instance id means siblings would otherwise share
+        // one class-derived position key and overwrite each other's saved position.
+        opts.rememberPosition = false;
         opts.position = foundry.utils.mergeObject(
             foundry.utils.mergeObject({}, QuestWindow.DEFAULT_OPTIONS.position ?? {}),
             opts.position || {}

@@ -1,7 +1,7 @@
 import { MODULE, TEMPLATES, getCodexCategoryIcon } from './const.js';
 import { CodexParser } from './utility-codex-parser.js';
 import { CODEX_PAGE_TYPE } from './data/codex-page-model.js';
-import { copyToClipboard, getNativeElement, renderTemplate, getTextEditor, escapeHtml, getPartyActors, showBlacksmithWait, fillCampaignPlaceholders } from './helpers.js';
+import { copyToClipboard, getNativeElement, renderTemplate, getTextEditor, escapeHtml, getPartyActors, hasPrimaryParty, showBlacksmithWait, fillCampaignPlaceholders } from './helpers.js';
 import { trackModuleTimeout, moduleDelay } from './timer-utils.js';
 import { showJournalPicker } from './utility-journal.js';
 import {
@@ -1337,7 +1337,11 @@ export class CodexPanel {
             const partyActors = getPartyActors();
 
             if (partyActors.length === 0) {
-                ui.notifications.warn("No party members found. Configure the party in Blacksmith's campaign settings.");
+                ui.notifications.warn(
+                    hasPrimaryParty()
+                        ? "No party members found. The configured party has no player characters."
+                        : "No party members found. No primary party is set — configure one in Blacksmith's campaign settings."
+                );
                 // Clean up progress bar before returning
                 if (progressArea && progressFill && progressText) {
                     progressText.textContent = 'No players found';
@@ -1561,13 +1565,16 @@ export class CodexPanel {
      * @private
      */
     async _openImportCodexDialog() {
+        // On failure this stays empty rather than holding an error string. It used
+        // to be set to 'Failed to load prompt-codex.txt.', which Copy Template then
+        // put on the GM's clipboard under a success toast.
         let template = '';
         try {
-            const response = await fetch('modules/coffee-pub-librarian/prompts/prompt-codex.txt');
+            const response = await fetch(`modules/${MODULE.ID}/prompts/prompt-codex.txt`);
             if (response.ok) template = await response.text();
-            else template = 'Failed to load prompt-codex.txt.';
-        } catch (e) {
-            template = 'Failed to load prompt-codex.txt.';
+            else console.error(`${MODULE.TITLE} | prompt-codex.txt failed to load: ${response.status}`);
+        } catch (error) {
+            console.error(`${MODULE.TITLE} | prompt-codex.txt failed to load:`, error);
         }
         await showBlacksmithWait({
             title: 'Import Codex from JSON',
@@ -1744,9 +1751,13 @@ export class CodexPanel {
                 const copyTemplateButton = nativeDlgHtml.querySelector('.copy-template-button');
                 if (copyTemplateButton) {
                     copyTemplateButton.addEventListener('click', () => {
-                        const output = fillCampaignPlaceholders(template);
-                        copyToClipboard(output);
-                        ui.notifications.info('Template copied to clipboard!');
+                        if (!template) {
+                            ui.notifications.error('The codex prompt template could not be loaded. See the console for details.');
+                            return;
+                        }
+                        // copyToClipboard reports its own success; a second toast here
+                        // fired even when the copy had failed.
+                        copyToClipboard(fillCampaignPlaceholders(template));
                     });
                 }
                 const browseFileButton = nativeDlgHtml.querySelector('.browse-file-button');

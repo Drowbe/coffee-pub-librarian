@@ -1,0 +1,100 @@
+JSON TEMPLATE FOR CODEX
+
+I want you to build a JSON array that will be used for a codex feature in my foundryvtt module using an "import json" feature. This JSON will be based on the criteria I will share below. Here are the rules for how you will add data to the JSON.
+
+**NAME** - The name of the entry. DO not add "the" or "a" to the name.
+**CATEGORY** - This will be the organizing and grouping mechanism for the entry, so be smart about it as we do not want a bunch of similar categories. They should be unique and specific. Any non-unique classifications would be better as tags. It should be plural as there will be multiple things in the category. e.g. "Characters". Prefer these established categories when they fit: "Characters", "Establishments", "Events", "Factions", "Items", "Artifacts", "Landmarks", "Locations", "Maps". Place-related entries MUST be split rather than dumped into Locations: use "Establishments" for businesses and services (shops, inns, taverns, guildhalls, temples-as-businesses), "Landmarks" for distinctive named sites and features (bridges, waterfalls, monuments, ruins, standing stones, districts with a proper name), and reserve "Locations" for broad geography only (regions, settlements, wilderness areas).
+**SUMMARY** - A concise summary of the entry that would help someone understand what, where, or who this is, and enough context to make it interesting. (make it 200 to 500 characters)
+**PLOTHOOK** - The relationship to the plot,  especially if they have something the party might need (under 200 characters)
+**LOCATION** - the entry's place in the world as a hierarchical path with " > " separators, ordered broadest to most specific: Realm > Region > Site > Area. Realm is the world or continent (e.g. "Faerûn"), Region is the territory or geographic area (e.g. "Moonsea", "Daggerdale"), Site is the settlement or named place (e.g. "Teshwave", "Dagger Fall"), Area is the specific spot within it (e.g. "The Broken Anvil", "Aquatic Crypt"). Include only the levels you actually know — "Faerûn > Moonsea > Teshwave" is valid without an Area. Reuse the exact same spelling for shared levels across entries so they group together.
+**TAGS** - a list of tags that would help filter this entry when looking it up. These will be used for filtering, so characteristics and identifying attributes like type, location, faction, etc., would be useful. There should never be tags for words like "the" and there should never be single-letter tags like "a". The first tag should always be the category. Add no more than 5 tags. Having spaces in the tag is okay, but do not divide words with special characters like underscores. You should always add the location as a tag, but the location should be specific. Something like "Phlan - Thorne Island - Aquatic Crypt" would be three tags. Also, be mindful of when a particular tag might need to be a second, less specific tag. For instance, "black cult of the dragon" is a particular tag, but we should add a second tag for "cult" which would be another proper tag. They should be formatted to be json-friendly and will be an array formatted like: "npc", "inn", "drinking game", "informant", "phlan". A tag would be something that would likely be applied to more than one entry. For example, "arena beast" is unnecessary... it should be "arena" and "beast". They should not be niche or overly specific phrases. Remember, these are used to group like things based on characteristics of the entry.
+**EXPANDEDDETAILS** - OPTIONAL rich lore for the entry, rendered on the full journal page below the summary and field block. Use simple HTML: <h2> or <h3> section headings (for example Geography, Government, History for a location, or Appearance, Motivations, Relationships for a character), and <p> paragraphs. Do not add a heading named "Expanded Details" — the page already labels this section. Do not include <img> tags or scripts. Escape the HTML so it is JSON-friendly (single-line string, double quotes escaped). If there is not enough source material for deeper detail, set this to null rather than padding it.
+
+**LINKS** - OPTIONAL. Links from this entry to **game documents that already exist** in the world or in the campaign's compendiums. This is a narrow field. Most entries need **zero to three links, and many need none at all.**
+
+Each link is an object with a "name" (spelled exactly as it appears on the document) and a "type":
+  - "actor" - a creature or NPC that exists as an actor
+  - "item" - an object, weapon, or artifact that exists as an item
+  - "spell" / "feature" / "rolltable" - as named
+  - "journal" - RARE. Only for a standalone journal *document*. Not a page inside a journal, and never a codex entry.
+
+**Do NOT link other codex entries.** This is the most common mistake. Codex entries are *pages inside a single journal*, not documents — a link to one is impossible to resolve and will be discarded. So do not link places, regions, cities, districts, sites, factions, organizations, orders, guilds, events, or any other lore concept that is itself a codex entry. If a "Phlan" entry mentions Moonsea, Valjevo Castle, and the Black Fist, and those are codex entries, then **none of them belong in "links"**. Entry-to-entry relationships are not expressed in this JSON.
+
+Do NOT invent UUIDs. Write the plain name; the importer resolves it against the GM's configured compendiums.
+
+Only link what you are confident exists as an actual document. A name that does not resolve is kept as plain text and reported to the GM, who can link it later once the document exists — so a name is never lost, but a speculative link still creates noise the GM has to sort through. Prefer no link over a guess.
+
+A long "links" array is a reliable sign you are linking *concepts* instead of *documents*. If you find yourself adding more than about three, stop and re-read this section.
+
+You do not need to link the entry to itself: the importer already resolves the entry's own name using its category.
+
+**RELATED** - OPTIONAL. Other **codex entries** this entry is meaningfully connected to, as plain names in an array of strings. No "type" and no UUID — they are all codex entries. **This is where everything excluded from "links" belongs**: the places, districts, sites, factions, organizations, orders, guilds, and events this entry is bound up with.
+
+Do NOT repeat this entry's own location path. Phlan's location is already "Faerûn > Moonsea > Phlan", and each level of that hierarchy is rendered from the location field — listing "Faerûn" or "Moonsea" in "related" just duplicates it. Related is for connections the hierarchy does not already carry.
+
+A name with no codex entry yet is fine and is NOT an error. The relationship is kept as written and links itself if that entry is created later, so record a real connection even when the other entry does not exist yet.
+
+Be meaningful rather than exhaustive: the entries a reader would actually want to jump to, not every proper noun in the text. Usually a handful; a big location hub may justify more.
+
+An example for a "Phlan" entry (note that Faerûn and Moonsea are absent — they are its location path):
+
+    "related": [
+      "Valjevo Castle",
+      "Black Fist",
+      "Mantor's Library",
+      "Sokol Keep",
+      "Madame Freona's Tea Kettle",
+      "Harpers",
+      "Goblin Caves"
+    ]
+
+If the entry has no meaningful connections, use an empty array: "related": []
+
+Replace the above items in their matching placeholder below. Be sure the text is JSON-friendly. Do not change any of the code, replace the placeholders. This JSON  will be cut and pasted into an importer. Here is the template to use to build the JSON. It is an array, so be sure the JSON is valid, creates proper arrays, and has no linter errors:
+
+[
+  {
+    "name": "**NAME**",
+    "img": null,
+    "category": "**CATEGORY**",
+    "summary": "**SUMMARY**",
+    "plotHook": "**PLOTHOOK**",
+    "location": "**LOCATION**",
+    "links": [ **LINKS** ],
+    "related": [ **RELATED** ],
+    "tags": [ **TAGS** ],
+    "expandedDetails": "**EXPANDEDDETAILS**"
+  }
+]
+
+CORRECT - an establishment entry linking the NPC who runs it and an artifact kept there. Both exist as documents:
+
+    "links": [
+      { "name": "Mira Vex", "type": "actor" },
+      { "name": "Arcanic Wayfinder Part 2: Casing", "type": "item" }
+    ]
+
+WRONG - every one of these is a place, faction, or lore concept, which means it is a codex entry, not a document. None of them can resolve as links. Do not produce this:
+
+    "links": [
+      { "name": "Moonsea", "type": "journal" },
+      { "name": "Valjevo Castle", "type": "journal" },
+      { "name": "Black Fist", "type": "journal" },
+      { "name": "Mantor's Library", "type": "journal" },
+      { "name": "Harpers", "type": "journal" }
+    ]
+
+Those names are not worthless — they are simply in the wrong field. **Do not discard them; move them to "related"**, minus the location path:
+
+    "links": [ { "name": "Spanky", "type": "actor" } ],
+    "related": [ "Valjevo Castle", "Black Fist", "Mantor's Library", "Harpers" ]
+
+If the entry has no links to real documents — which is common, and correct — use an empty array: "links": []
+
+Here are the specific instructions I want you to use to build the above JSON array:
+
+- The campaign is leveraging these rulebooks: [ADD-RULEBOOKS-HERE]
+- extract any named characters, if applicable
+- extract any named events, if applicable
+- extract any named items or artifacts, if applicable.
+- be specific

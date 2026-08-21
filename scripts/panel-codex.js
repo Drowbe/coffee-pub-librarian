@@ -156,53 +156,47 @@ export class CodexPanel {
      * Show the global progress bar for codex imports
      * @private
      */
-    _showProgressBar() {
-        // v13: Use native DOM instead of jQuery
-        const nativeElement = getNativeElement(this.element);
-        if (!nativeElement) return;
-        
-        const progressArea = nativeElement.querySelector('.tray-progress-bar-wrapper');
-        const progressFill = nativeElement.querySelector('.tray-progress-bar-inner');
-        const progressText = nativeElement.querySelector('.tray-progress-bar-text');
-        
-        if (progressArea && progressFill && progressText) {
-            progressArea.style.display = '';
-            progressFill.style.width = '0%';
-            progressText.textContent = 'Starting codex import...';
-        }
+    _setStatus(text) {
+        const slot = getNativeElement(this.element)?.querySelector('[data-codex-status]');
+        if (slot) slot.textContent = String(text ?? '');
     }
 
     /**
-     * Update the global progress bar
+     * Progress reporting, into whatever status slot the host provides.
+     *
+     * These three used to drive `.tray-progress-bar-wrapper` / `-inner` / `-text`,
+     * elements that only ever existed in Squire's `tray.hbs`. Once the panels moved
+     * into windows the markup stopped existing, every `querySelector` returned null,
+     * and all three became silent no-ops — through imports, Auto-Link and
+     * auto-discovery alike, since Squire 13.6.0.
+     *
+     * That was not merely cosmetic: `_autoDiscoverFromInventories` interleaved
+     * `moduleDelay` pauses of up to five seconds specifically to make the progress
+     * readable, so every scan was slowed down substantially for a display nobody
+     * could see. Those pauses are gone with the bar.
+     *
+     * The host owns the slot: the codex browser puts `[data-codex-status]` in its
+     * Tool footer. A host that provides none gets a no-op, which is the correct
+     * behaviour rather than an error — the panel does not know what shell it is in.
+     * @private
+     */
+    _showProgressBar() {
+        this._setStatus('Starting codex import...');
+    }
+
+    /**
+     * @param {number} percent 0-100, reported as a percentage rather than a bar
+     * @param {string} text
      * @private
      */
     _updateProgressBar(percent, text) {
-        // v13: Use native DOM instead of jQuery
-        const nativeElement = getNativeElement(this.element);
-        if (!nativeElement) return;
-        
-        const progressFill = nativeElement.querySelector('.tray-progress-bar-inner');
-        const progressText = nativeElement.querySelector('.tray-progress-bar-text');
-        
-        if (progressFill && progressText) {
-            progressFill.style.width = `${percent}%`;
-            progressText.textContent = text;
-        }
+        const pct = Number.isFinite(percent) ? ` (${Math.round(percent)}%)` : '';
+        this._setStatus(`${text}${pct}`);
     }
 
-    /**
-     * Hide the global progress bar
-     * @private
-     */
+    /** @private */
     _hideProgressBar() {
-        // v13: Use native DOM instead of jQuery
-        const nativeElement = getNativeElement(this.element);
-        if (!nativeElement) return;
-        
-        const progressArea = nativeElement.querySelector('.tray-progress-bar-wrapper');
-        if (progressArea) {
-            progressArea.style.display = 'none';
-        }
+        this._setStatus('');
     }
 
     /**
@@ -1039,10 +1033,30 @@ export class CodexPanel {
         });
     }
 
-    /** @private */
-    _openTitlebarMenu(event) {
+    /**
+     * The codex `…` menu.
+     *
+     * `event` may be null. Blacksmith's Tool base calls a header action's `onClick`
+     * with the click event when the action is a direct title-bar button, and with
+     * `null` when the same action is invoked from the controls context menu
+     * (`window-tool-base.js:360`) — where there is no originating click to report.
+     * `fallbackEl` anchors the menu in that case.
+     *
+     * @param {MouseEvent|null} event
+     * @param {HTMLElement|null} [fallbackEl] anchor when there is no event
+     * @private
+     */
+    _openTitlebarMenu(event, fallbackEl = null) {
         const blacksmith = getBlacksmith();
         if (!blacksmith?.uiContextMenu?.show) return;
+
+        let x = event?.clientX;
+        let y = event?.clientY;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            const rect = (fallbackEl ?? this.element)?.getBoundingClientRect?.();
+            x = rect ? rect.right - 8 : 0;
+            y = rect ? rect.top + 8 : 0;
+        }
 
         const coreItems = [{
             name: 'Refresh Codex',
@@ -1080,8 +1094,8 @@ export class CodexPanel {
 
         blacksmith.uiContextMenu.show({
             id: `${MODULE.ID}-codex-titlebar-menu`,
-            x: event.clientX,
-            y: event.clientY,
+            x,
+            y,
             zones: { core: coreItems, gm: gmItems }
         });
     }
@@ -1120,22 +1134,7 @@ export class CodexPanel {
         }
 
         this.isImporting = true;
-        const nativeElement = getNativeElement(this.element);
-        const button = nativeElement?.querySelector('.codex-titlebar-menu');
-        if (button) {
-            button.classList.add('working');
-            button.setAttribute('title', 'Auto-linking codex entries...');
-        }
-
-        const progressArea = nativeElement?.querySelector('.tray-progress-bar-wrapper');
-        const progressFill = nativeElement?.querySelector('.tray-progress-bar-inner');
-        const progressText = nativeElement?.querySelector('.tray-progress-bar-text');
-        if (progressArea && progressFill && progressText) {
-            progressArea.style.display = '';
-            progressFill.style.width = '0%';
-            progressText.textContent = `Auto-linking ${pending.length} entries...`;
-            await moduleDelay(300);
-        }
+        this._setStatus(`Auto-linking ${pending.length} ${pending.length === 1 ? 'entry' : 'entries'}...`);
 
         const reports = [];
         let linked = 0;
@@ -1144,9 +1143,7 @@ export class CodexPanel {
         try {
             for (let i = 0; i < pending.length; i++) {
                 const page = pending[i];
-                const percent = (i / pending.length) * 100;
-                if (progressFill) progressFill.style.width = `${percent}%`;
-                if (progressText) progressText.textContent = `Auto-linking: ${page.name}`;
+                this._updateProgressBar((i / pending.length) * 100, `Auto-linking: ${page.name}`);
 
                 const existing = (page.system?.links ?? []).map(normalizeCodexLink);
                 // Only the unresolved ones go back to the resolver; anything already
@@ -1177,8 +1174,7 @@ export class CodexPanel {
                 if (i % 5 === 0) await moduleDelay(50);
             }
 
-            if (progressFill) progressFill.style.width = '100%';
-            if (progressText) progressText.textContent = 'Auto-Link complete!';
+            this._setStatus('Auto-Link complete');
 
             ui.notifications.info(
                 linked
@@ -1190,10 +1186,6 @@ export class CodexPanel {
             console.error('Coffee Pub Librarian | Auto-Link failed:', error);
             ui.notifications.error('Auto-Link failed. See console for details.');
         } finally {
-            if (button) {
-                button.classList.remove('working');
-                button.setAttribute('title', 'Codex options');
-            }
             this.isImporting = false;
             trackModuleTimeout(() => this._hideProgressBar(), 2000);
             await this._refreshData();
@@ -1203,41 +1195,19 @@ export class CodexPanel {
 
     async _autoDiscoverFromInventories() {
         if (!this.selectedJournal) {
-            ui.notifications.warn("No codex journal selected. Please select a journal first.");
+            ui.notifications.warn('No codex journal selected. Please select a journal first.');
             return;
         }
 
-        // Set import flag to prevent panel refreshes during auto-discovery
+        // Suppresses the per-page re-render the journal-routing hook would otherwise
+        // fire for each entry this reveals. Cleared in `finally` — an early return
+        // that skipped it used to leave the panel permanently ignoring journal
+        // updates for the rest of the session.
         this.isImporting = true;
 
-        // v13: Use native DOM instead of jQuery
-        const nativeElement = getNativeElement(this.element);
-        if (!nativeElement) return;
-
-        // Get the titlebar menu button for working state during scan
-        const button = nativeElement.querySelector('.codex-titlebar-menu');
-        if (button) {
-            button.classList.add('working');
-            button.setAttribute('title', 'Scanning party inventories...');
-        }
-
-        // Show progress area
-        const progressArea = nativeElement.querySelector('.tray-progress-bar-wrapper');
-        const progressFill = nativeElement.querySelector('.tray-progress-bar-inner');
-        const progressText = nativeElement.querySelector('.tray-progress-bar-text');
-        
-        if (progressArea && progressFill && progressText) {
-            progressArea.style.display = '';
-            progressFill.style.width = '0%';
-            progressText.textContent = 'Starting scan...';
-            
-            // Small delay to make progress visible
-            await moduleDelay(500);
-        }
-
         try {
-            // Show initial notification
-            ui.notifications.info("Starting auto-discovery scan...");
+            ui.notifications.info('Starting auto-discovery scan...');
+            this._setStatus('Starting scan...');
 
             // The campaign's party, not whoever happens to be standing on the open
             // scene. Discovery is about what the party OWNS — an item in a PC's
@@ -1248,224 +1218,81 @@ export class CodexPanel {
             if (partyActors.length === 0) {
                 ui.notifications.warn(
                     hasPrimaryParty()
-                        ? "No party members found. The configured party has no player characters."
+                        ? 'No party members found. The configured party has no player characters.'
                         : "No party members found. No primary party is set — configure one in Blacksmith's campaign settings."
                 );
-                // Clean up progress bar before returning
-                if (progressArea && progressFill && progressText) {
-                    progressText.textContent = 'No players found';
-                    progressFill.style.width = '100%';
-                    // Hide progress area after a delay
-                    trackModuleTimeout(() => {
-                        progressArea.style.display = 'none';
-                    }, 2000);
-                }
+                this._setStatus('No party members found');
                 return;
             }
 
-            // Collect all inventory items from party members
+            // ----- Pass 1: what does the party own? ---------------------------
             const inventoryItems = new Set();
-            const characterNames = [];
-            const totalPlayers = partyActors.length;
-            let processedPlayers = 0;
-            
-            // Update progress for character scanning phase
-            if (progressText) {
-                progressText.textContent = 'Scanning party inventories...';
-            }
-            if (progressFill) {
-                progressFill.style.width = '0%';
-            }
-            
-            for (const actor of partyActors) {
-                characterNames.push(actor.name);
-                processedPlayers++;
-                
-                // Update progress for this character - REAL PROGRESS
-                const playerProgressPercent = (processedPlayers / totalPlayers) * 20; // 0-20% range for player scanning
-                if (progressFill) {
-                    progressFill.style.width = `${playerProgressPercent}%`;
-                }
-                if (progressText) {
-                    progressText.textContent = `Scanning ${actor.name}...`;
-                }
-                
-                // Add a small delay to make player scanning visible
-                await moduleDelay(200);
-                
-                // Use the same approach as the inventory panel
-                if (actor.items && actor.items.contents) {
-                    // Filter items by type (same as inventory panel)
-                    const items = actor.items.contents.filter(item => 
-                        CODEX_SCAN_ITEM_TYPES.includes(item.type)
-                    );
-                    
-                    for (const item of items) {
-                        // Contained items are already in `items` — see CODEX_SCAN_ITEM_TYPES.
-                        inventoryItems.add(normalizeName(item.name));
-                    }
+            for (const [index, actor] of partyActors.entries()) {
+                this._updateProgressBar((index / partyActors.length) * 20, `Scanning ${actor.name}`);
+                for (const item of actor.items?.contents ?? []) {
+                    // Contained items are already in `items` — see CODEX_SCAN_ITEM_TYPES.
+                    if (CODEX_SCAN_ITEM_TYPES.includes(item.type)) inventoryItems.add(normalizeName(item.name));
                 }
             }
 
             if (inventoryItems.size === 0) {
                 ui.notifications.warn("No inventory items found in party members' inventories.");
-                // Clean up progress bar before returning
-                if (progressArea && progressFill && progressText) {
-                    progressText.textContent = 'No items found';
-                    progressFill.style.width = '100%';
-                    // Hide progress area after a delay
-                    trackModuleTimeout(() => {
-                        progressArea.style.display = 'none';
-                    }, 2000);
-                }
+                this._setStatus('No inventory items found');
                 return;
             }
 
-            // Find matching codex entries
-            const discoveredEntries = [];
-            const updatedPages = [];
+            // ----- Pass 2: which hidden entries does that reveal? --------------
+            const discovered = [];
             const totalEntries = Object.values(this.data).flat().length;
-            let processedEntries = 0;
-            let lastDiscoveryTime = 0; // Track when last discovery was shown
+            let processed = 0;
 
-            // Update progress for codex scanning phase
-            if (progressText) {
-                progressText.textContent = `Scanning ${totalEntries} codex entries...`;
-            }
-            if (progressFill) {
-                progressFill.style.width = '20%';
-            }
-
-            for (const [category, entries] of Object.entries(this.data)) {
+            for (const entries of Object.values(this.data)) {
                 for (const entry of entries) {
-                    processedEntries++;
-                    
-                    // Update progress bar with current entry info - REAL PROGRESS, no throttling
-                    const progressPercent = 20 + ((processedEntries / totalEntries) * 80); // 20-100% range for codex scanning
-                    if (progressFill) {
-                        progressFill.style.width = `${progressPercent}%`;
-                    }
-                    
-                    // Only update progress text if we haven't shown a discovery recently
-                    const now = Date.now();
-                    if (progressText && (now - lastDiscoveryTime) > 1000) {
-                        progressText.textContent = `Scanning: ${entry.name}`;
-                    }
-                    
-                    // Add a small delay every 5 entries to make progress visible
-                    if (processedEntries % 5 === 0) {
-                        await moduleDelay(100);
-                    }
-                    
-                    // Check if entry name matches any inventory item
-                    const entryNameLower = normalizeName(entry.name);
-                    
-                    if (inventoryItems.has(entryNameLower)) {
-                        // Check if this entry is already visible
-                        const page = await fromUuid(entry.uuid);
-                        if (page && page.ownership?.default < CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER) {
-                            // Find which character(s) had this item
-                            const discoverers = [];
-                            
-                            // Log what we're looking for
-                            
-                            for (const actor of partyActors) {
-                                // Same list, same normalizer as the pass that built
-                                // `inventoryItems` — the two must agree or an entry
-                                // matches with nobody credited for finding it.
-                                const owns = actor.items.contents.some(item =>
-                                    CODEX_SCAN_ITEM_TYPES.includes(item.type)
-                                    && normalizeName(item.name) === entryNameLower
-                                );
-                                if (owns) discoverers.push(actor.name);
-                            }
-                            
-                            // Log what we found
-                            
-                            // Make it visible
-                            await page.update({ 'ownership.default': CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER });
-                            discoveredEntries.push(entry.name);
-                            updatedPages.push(page);
-                            
-                            // Add "Discovered By" information to the journal entry
-                            if (discoverers.length > 0) {
-                                await this._addDiscoveredByInfo(page, discoverers);
-                            }
-                            
-                            // Show discovery immediately with progress update
-                            if (progressText) {
-                                progressText.textContent = `✓ Found: ${entry.name}`;
-                                lastDiscoveryTime = Date.now(); // Mark when discovery was shown
-                                // Keep discovery visible for a moment - increased delay
-                                await moduleDelay(1200);
-                            }
-                        }
-                    }
+                    processed++;
+                    this._updateProgressBar(20 + ((processed / totalEntries) * 80), `Scanning: ${entry.name}`);
+
+                    // Yield periodically so a long scan does not freeze the UI thread.
+                    // This is the only pause left: the scan used to interleave delays
+                    // of 200ms per actor, 1.2s per discovery, and 5s at the end, purely
+                    // to make a progress bar readable that had not existed since Squire
+                    // 13.6.0. See _showProgressBar.
+                    if (processed % 5 === 0) await moduleDelay(50);
+
+                    const entryName = normalizeName(entry.name);
+                    if (!inventoryItems.has(entryName)) continue;
+
+                    const page = await fromUuid(entry.uuid);
+                    if (!page || (page.ownership?.default ?? 0) >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER) continue;
+
+                    // Same list, same normalizer as the pass that built `inventoryItems`
+                    // — the two must agree or an entry matches with nobody credited.
+                    const discoverers = partyActors
+                        .filter(actor => (actor.items?.contents ?? []).some(item =>
+                            CODEX_SCAN_ITEM_TYPES.includes(item.type) && normalizeName(item.name) === entryName))
+                        .map(actor => actor.name);
+
+                    await page.update({ 'ownership.default': CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER });
+                    if (discoverers.length) await this._addDiscoveredByInfo(page, discoverers);
+
+                    discovered.push(entry.name);
+                    this._setStatus(`Found: ${entry.name}`);
                 }
             }
 
-            // Show final summary regardless of results
-            if (discoveredEntries.length === 0) {
-                if (progressText) {
-                    progressText.textContent = `No new entries found`;
-                }
-            } else {
-                if (progressText) {
-                    progressText.textContent = `Found ${discoveredEntries.length} new entries`;
-                }
-            }
-            
-            // Keep final summary visible for a moment
-            await moduleDelay(1500);
-            
-            // Log detailed results with discoverer information
-            
-            // Show completion message and hide progress area after delay
-            if (progressArea && progressFill && progressText) {
-                // Show prominent completion message
-                progressText.textContent = 'Scan Complete!';
-                progressFill.style.width = '100%';
-                
-                // Add a visual completion indicator
-                progressArea.classList.add('scan-complete');
-                
-                // Keep completion message visible for 5 seconds
-                await moduleDelay(5000);
-                
-                // Remove completion styling and hide progress area
-                progressArea.classList.remove('scan-complete');
-                progressArea.style.display = 'none';
-            }
-            
-            // Clear import flag and refresh panel once at the end
+            const summary = discovered.length
+                ? `Auto-discovery revealed ${discovered.length} ${discovered.length === 1 ? 'entry' : 'entries'}: ${discovered.join(', ')}`
+                : 'Auto-discovery found nothing new.';
+            ui.notifications.info(summary);
+            this._setStatus(discovered.length ? `Revealed ${discovered.length}` : 'Nothing new found');
+        } catch (error) {
+            console.error('Coffee Pub Librarian | Auto-discovery failed:', error);
+            ui.notifications.error(`Auto-discovery failed: ${error.message}`);
+            this._setStatus('Auto-discovery failed');
+        } finally {
             this.isImporting = false;
             await this._refreshData();
             this.render(this.element);
-            
-        } catch (error) {
-            // Clear import flag on error
-            this.isImporting = false;
-            
-            console.error('Error during auto-discovery:', error);
-            ui.notifications.error(`Auto-discovery failed: ${error.message}`);
-            
-            // Show error in progress area
-            if (progressArea && progressFill && progressText) {
-                progressText.textContent = `Error: ${error.message}`;
-                progressFill.style.width = '100%';
-                
-                // Hide progress area after a delay
-                trackModuleTimeout(() => {
-                    progressArea.style.display = 'none';
-                }, 3000);
-            }
-        } finally {
-            // Reset button state (titlebar menu icon)
-            const menuBtn = nativeElement.querySelector('.codex-titlebar-menu');
-            if (menuBtn) {
-                menuBtn.classList.remove('working');
-                menuBtn.setAttribute('title', 'Codex options');
-            }
+            trackModuleTimeout(() => this._setStatus(''), 4000);
         }
     }
 

@@ -100,5 +100,51 @@ for d, _, fs in os.walk('.'):
             if not os.path.exists(path):
                 fail.append('ASSET %s -> %s' % (pth, path))
 
+# 7. every Handlebars helper a template calls has someone registering it
+#
+# Handlebars fails at RENDER time with "Missing helper", not at load, so a helper
+# used on one screen can go missing and every other screen still looks fine. That
+# is exactly how `isArray` was nearly lost: the audit that decided which helpers to
+# keep matched `{{helper` and missed `{{#if (isArray x)}}`, which is the only form
+# it appears in. Subexpressions are counted here for that reason.
+#
+# Blacksmith's set is read from its source rather than assumed, so this also catches
+# Blacksmith dropping one out from under us.
+BUILTIN = {'if', 'unless', 'each', 'with', 'else', 'log', 'lookup', 'this'}
+FOUNDRY = {'localize', 'numberFormat', 'lookup', 'ne', 'lt', 'lte', 'gte', 'not',
+           'concat', 'editor', 'filePicker', 'colorPicker', 'rangePicker',
+           'selectOptions', 'radioBoxes', 'checked', 'disabled', 'ifThen',
+           'formInput', 'formGroup', 'formField', 'object'}
+
+provided = set(re.findall(r"registerHelper\('([^']+)'",
+                          io.open('scripts/helpers.js', encoding='utf-8').read()))
+bs_helpers = '../coffee-pub-blacksmith/scripts/utility-handlebars.js'
+if os.path.exists(bs_helpers):
+    provided |= set(re.findall(r"registerHelper\('([^']+)'",
+                               io.open(bs_helpers, encoding='utf-8').read()))
+else:
+    fail.append('HELPERS cannot verify: %s not found (is Blacksmith installed alongside?)' % bs_helpers)
+
+for d, _, fs in os.walk('templates'):
+    for f in fs:
+        if not f.endswith('.hbs'):
+            continue
+        pth = os.path.join(d, f)
+        txt = io.open(pth, encoding='utf-8').read()
+        txt = re.sub(r'\{\{!--.*?--\}\}', '', txt, flags=re.S)   # Handlebars comments
+        txt = re.sub(r'<!--.*?-->', '', txt, flags=re.S)         # HTML comments
+        # Only look INSIDE {{ }}. Scanning the whole file for `(word ` finds prose --
+        # "(GM only)", "(above location per design)", "(Not Started)" -- and reports
+        # each as a missing helper.
+        names = set()
+        for expr in re.findall(r'\{\{(.*?)\}\}', txt, flags=re.S):
+            expr = re.sub(r'"[^"]*"|\'[^\']*\'', '""', expr)     # drop string literals
+            head = re.match(r'\s*[#/^]?\s*([a-zA-Z][\w-]*)\s', expr)
+            if head:
+                names.add(head.group(1))
+            names |= set(re.findall(r'\(\s*([a-zA-Z][\w-]*)\s', expr))
+        for n in sorted(names - BUILTIN - FOUNDRY - provided):
+            fail.append('HELPER %s -> "%s" has no registered provider' % (pth, n))
+
 print('\n'.join(sorted(set(fail))) if fail else 'ALL CHECKS PASS')
 print('(%d js files checked, as modules)' % len(js))

@@ -1,16 +1,11 @@
+{{!--
+    No title row. The host window supplies the title bar, and its controls — the
+    codex options menu and Add Entry — are registered as Tool header actions in
+    window-codex-browser.js. This template used to open with a `.tray-title-small`
+    block carrying both icons: a second "Codex" heading directly under the window's
+    own, styled by a class that only ever existed in Squire's tray stylesheet.
+--}}
 {{#if (eq position "left")}}
-    <div class="tray-title-small">
-        <span>
-            Codex
-        </span>
-        <div class="codex-toolbar">
-            {{#if isGM}}
-                <i class="fa-solid fa-bookmark add-codex-button" data-tooltip="Add Codex Entry"></i>
-            {{/if}}
-            <i class="fa-solid fa-ellipsis-h codex-titlebar-menu" data-tooltip="Codex options"></i>
-        </div>
-    </div>
-
     <div class="codex-filters">
         <div class="codex-search">
             <input type="text" placeholder="Search entries..." value="{{filters.search}}">

@@ -1,0 +1,75 @@
+/* ==================================================================
+   ===== CODEX BROWSER — TOOL WINDOW (window-codex-browser.js) ======
+   ==================================================================
+
+   Everything is scoped to .librarian-codex-browser-window so the shared
+   Tool shell is untouched, and every colour comes from the
+   --blacksmith-tool-* custom properties rather than a literal, so the
+   window follows the Light / Dark / Glass theme the user picks.
+
+   Blacksmith's styles/window-compendium-search.css is the reference:
+   it contains no colour literals at all. panel-codex.css does not yet
+   meet that bar (TODO H5) — until it does, this window defaults to the
+   dark theme so the shell does not fight the panel's own skin.
+   ================================================================== */
+
+/* ===== SCROLL PLUMBING ===========================================
+   .codex-content is `flex: 1; overflow-y: auto`, which only produces a
+   scrollbar when every ancestor up to the window body is a bounded flex
+   column — a flex child defaults to min-height:auto, refuses to shrink
+   below its content, and hands the scroller an unbounded height.
+
+   The Tool shell gives us the top of that chain; these are the two
+   levels this window adds beneath it. Without them the panel runs past
+   the bottom of the frame with no scrollbar at all. */
+
+.librarian-codex-browser-window .blacksmith-window-tool-body {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    /* The panel scrolls internally. A second scrollbar here would let the
+       whole panel — search, tag cloud and all — scroll away with the list. */
+    overflow: hidden;
+    padding: 0;
+}
+
+.librarian-codex-browser-window .librarian-codex-browser-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+    padding: var(--blacksmith-space-md, 8px) var(--blacksmith-space-sm, 4px)
+             var(--blacksmith-space-md, 8px) var(--blacksmith-space-md, 8px);
+}
+
+.librarian-codex-browser-window .librarian-codex-browser-body > .panel-container {
+    flex: 1;
+    min-height: 0;
+}
+
+/* The panel's own root, whatever it renders, has to be shrinkable too. */
+.librarian-codex-browser-window .panel-container > * {
+    min-height: 0;
+}
+
+/* ===== FOOTER ====================================================
+   "312 of 312 entries" on the left, a hint on the right — the shape
+   Compendium Search uses for "17 in 9 sources (103ms)". Both are
+   secondary text, so they take the muted token rather than an opacity:
+   opacity fades borders and backgrounds too, and compounds when nested. */
+
+.librarian-codex-browser-window .librarian-codex-status,
+.librarian-codex-browser-window .librarian-codex-hint {
+    color: var(--blacksmith-tool-text-muted, #9c9c9c);
+    font-size: 0.85em;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* The count is the load-bearing half: it is how a reader tells "the codex is
+   small" from "a filter is hiding most of it". */
+.librarian-codex-browser-window .librarian-codex-status {
+    color: var(--blacksmith-tool-text, #d8d8d8);
+}

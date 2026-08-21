@@ -382,4 +382,14 @@ export const registerHelpers = function() {
     Handlebars.registerHelper('default', function(value, defaultValue) {
         return value ?? defaultValue;
     });
+
+    // Used as a subexpression by the tags input in window-codex.hbs and
+    // window-quest.hbs. Blacksmith does not provide it and neither does Foundry.
+    //
+    // Nearly deleted with the rest: the audit that decided what to keep matched
+    // `{{helper` and missed `{{#if (isArray x)}}`, which is the only form this one
+    // appears in. Any future audit has to count subexpressions — see the note below.
+    Handlebars.registerHelper('isArray', function(value) {
+        return Array.isArray(value);
+    });
 };

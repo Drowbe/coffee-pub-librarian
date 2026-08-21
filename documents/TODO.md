@@ -37,7 +37,6 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **H5** | High | Blacksmith API | CSS uses 69 raw hex literals and 3 design tokens | M |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — now shipped; drops ~600 duplicated lines | M |
 | **H7** | High | Codex | `related` has no edit or view UI anywhere | M |
-| **H11** | High | UI | Import progress bar has been dead since Squire 13.6.0 | S |
 | **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
 | **M3** | Medium | Quests | **AUDIT** — quest pin visibility may share the codex pin no-op | M |
 | **M6** | Medium | Codex | New entries from the editor window set no ownership; import does | S |
@@ -73,7 +72,7 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 | **C1** | Window registry opener called a function that no longer existed | *The Blacksmith window registry could not open either browser* |
 | **C2** | `prompt-codex.txt` never shipped; Copy Template copied its own error string | *Copy Template in the codex importer copied an error message* |
 | **C3** | Squire named in three user-facing strings | *Squire named in three user-facing places* |
-| **H1** | 17 Handlebars helpers, 5 shadowing Blacksmith's globals, 1 in use | *Handlebars helper registration reduced from seventeen helpers to one* |
+| **H1** | 17 Handlebars helpers, 5 shadowing Blacksmith's globals | *Handlebars helper registration reduced from seventeen helpers to two* |
 | **H3** | Tag taxonomy addressed to Squire | Blacksmith shipped the three `coffee-pub-librarian.*` contexts; outcome folded into **H2** |
 | **H4** | `getPartyActors()` reinvented the roster fallback | *The party roster comes from Blacksmith's Party API* |
 | **L2** | Resolver header cited a doc that never existed | *`utility-resolver.js` no longer cites `documents/architecture-squire.md`* |
@@ -86,6 +85,7 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 | **H9** | `enrichHTML` awaited per link, per render, sequentially | *(same entry)* |
 | **H10** | Whole dataset JSON-serialised and reparsed every render | *(same entry)* |
 | **M1** | Tag filter wiped `codexCollapsedCategories` and never restored it | *Filtering the codex by a tag no longer permanently expands every category* |
+| **H11** | Progress bar dead since Squire 13.6.0, plus ~10s of pauses staged for it | *Progress reporting works again, in the window footer* |
 
 Two changes in `[Unreleased]` were never tracked items and have no row: the
 **Blacksmith minimum bump** to 13.19.0, which came out of the deployment
@@ -100,12 +100,26 @@ Everything above is in the working tree and none of it is in production yet.
 
 - [ ] Confirm production is on **Blacksmith 13.19.0** before pushing Librarian —
       the manifest minimum was raised to match what the code now uses.
-- [ ] Smoke-test what changed: open both browsers through the menubar **and** via
-      `blacksmith.openWindow('coffee-pub-librarian-quest-browser')` (the registry
-      path nothing exercised before); Export Codex reports `N of N`; Copy Template
-      yields the prompt rather than an error string; Auto-Discover runs; the quest
-      list renders (`quest-entry.hbs` is the only template using the `default`
-      helper, so a helper problem shows there first).
+- [ ] Smoke-test what changed. The codex browser is a different window class now,
+      so most of this is codex:
+      - **Both browsers open** from the menubar **and** via
+        `blacksmith.openWindow('coffee-pub-librarian-codex-browser')` /
+        `...-quest-browser` — the registry path nothing exercised before.
+      - **Codex chrome**: the window title bar carries Add Entry and the `…` menu;
+        there is no second "Codex" heading under it. The footer shows a count, and
+        it changes to "N of M" while a search or tag filter is active.
+      - **Codex interactions**, because event handling moved to delegation: card
+        collapse, the per-entry `…` menu, the visibility eye, pin and unpin,
+        Locate, Read more, a `related` link, an entry image, tag chips, search,
+        clear search, category collapse.
+      - **Both editors open** — Edit Entry on a codex entry, and a quest. This is
+        the path the `isArray` regression would have broken, and the gap the last
+        smoke list had.
+      - **Long operations report progress in the footer**: Import, Auto-Link, and
+        Auto-Discover. Auto-Discover should also feel markedly faster.
+      - **Export Codex** reports `N of N`.
+      - **Theme**: the tool context menu offers Light / Dark / Glass and the choice
+        survives a reopen.
 
 ---
 
@@ -234,21 +248,6 @@ changes to replace rather than merge.
 
 Reuse the panel's page index and `_renderCodexRef()` rather than growing a second
 name→page lookup.
-
-### H11 — The import progress bar has been dead since Squire 13.6.0
-
-`panel-codex.js` and `panel-quest.js` both drive `.tray-progress-bar-wrapper`,
-`-inner` and `-text`, which only ever existed in Squire's `tray.hbs`. Once the
-panels moved into windows the elements stopped existing, so every `querySelector`
-returns null and the progress display silently does nothing — through imports,
-Auto-Link, and auto-discovery alike.
-
-It is not just cosmetic: `_autoDiscoverFromInventories` interleaves
-`await moduleDelay(...)` calls of 200ms–5s specifically to make progress *visible*,
-so a scan is slowed down substantially for a display nobody can see.
-
-**Fix:** either add the markup to `window-campaign-browser.hbs` or delete the code
-and the delays with it. Right now it is neither.
 
 ---
 

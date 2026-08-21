@@ -33,6 +33,14 @@ if (!BlacksmithWindowBaseV2) {
  * which the tray and this window's body both carry.
  */
 
+/**
+ * Quests only. The codex moved to its own Tool window — see window-codex-browser.js
+ * for why the two stopped sharing a shell.
+ *
+ * Still a `KINDS` map rather than a flattened single case: quests are heading for a
+ * list-plus-detail layout, and whatever that becomes will still want its
+ * configuration in one readable block.
+ */
 const KINDS = {
     quest: {
         id: WINDOWS.QUEST_BROWSER,
@@ -40,15 +48,6 @@ const KINDS = {
         panelKey: 'panel-quest',
         headerIcon: 'fa-solid fa-flag',
         rootClass: 'quest-browser-window',
-        position: { width: 520, height: 860 },
-        constraints: { minWidth: 420, minHeight: 480 }
-    },
-    codex: {
-        id: WINDOWS.CODEX_BROWSER,
-        title: 'Codex',
-        panelKey: 'panel-codex',
-        headerIcon: 'fa-solid fa-book',
-        rootClass: 'codex-browser-window',
         position: { width: 520, height: 860 },
         constraints: { minWidth: 420, minHeight: 480 }
     }
@@ -171,6 +170,14 @@ export class CampaignBrowserWindow extends BlacksmithWindowBaseV2 {
  * rather than duplicating.
  */
 export async function openCampaignBrowser(kind) {
+    // The codex has its own window now. Routing here rather than at every call site
+    // keeps `openCampaignBrowser('codex')` working — the menubar tool, the module
+    // API, and `revealCampaignPanel` in campaign-panels.js all go through it.
+    if (kind === 'codex') {
+        const { openCodexBrowser } = await import('./window-codex-browser.js');
+        return openCodexBrowser();
+    }
+
     const config = KINDS[kind];
     if (!config) return null;
 
@@ -187,16 +194,28 @@ export async function openCampaignBrowser(kind) {
     return win;
 }
 
-/** Register every kind with Blacksmith's window registry. */
+/**
+ * Register both browsers with Blacksmith's window registry, so a toolbar, macro or
+ * another module can open either by id without importing the class.
+ *
+ * The codex is registered here too even though its class lives elsewhere: the
+ * registry is about ids and openers, and both openers route through
+ * `openCampaignBrowser`.
+ */
 export function registerCampaignBrowserWindows() {
     const blacksmith = getBlacksmith();
     if (!blacksmith?.registerWindow) return false;
 
+    const registrations = [
+        ...Object.entries(KINDS).map(([kind, config]) => [config.id, config.title, kind]),
+        [WINDOWS.CODEX_BROWSER, 'Codex', 'codex']
+    ];
+
     let allOk = true;
-    for (const [kind, config] of Object.entries(KINDS)) {
-        const ok = blacksmith.registerWindow(config.id, {
+    for (const [id, title, kind] of registrations) {
+        const ok = blacksmith.registerWindow(id, {
             moduleId: MODULE.ID,
-            title: config.title,
+            title,
             open: async () => openCampaignBrowser(kind)
         });
         if (!ok) allOk = false;

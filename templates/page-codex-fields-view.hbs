@@ -28,6 +28,14 @@
                 </span>
             </div>
         {{/if}}
+        {{#if relatedHtml.length}}
+            <div class="codex-page-field">
+                <span class="codex-page-label">Related</span>
+                <span class="codex-page-value codex-page-related">
+                    {{#each relatedHtml}}<span class="codex-page-related-item">{{{this}}}</span>{{/each}}
+                </span>
+            </div>
+        {{/if}}
         {{#if isGM}}
             {{#if system.plotHook}}
                 <div class="codex-page-field codex-page-plothook">

@@ -58,10 +58,15 @@ export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {
             position: { width: 480, height: 820 },
             window: { title: 'Codex', resizable: true, minimizable: true, icon: 'fa-solid fa-book' },
             windowSizeConstraints: { minWidth: 360, minHeight: 320 },
-            // Dark is closest to the codex panel's existing skin, so the shell does not
-            // fight the content while `panel-codex.css` is still colour-literal. The
-            // user can switch, and the choice is remembered per tool.
+            // Dark only, for now. The Tool shell supports Light / Glass and offers
+            // them in its controls menu by default — but `panel-codex.css` carries 93
+            // hardcoded colours and no `--blacksmith-tool-*` variables, so picking
+            // either gives a dark panel inside a parchment or frosted frame. Offering
+            // a menu option that visibly breaks the window is worse than not offering
+            // it. Re-enable this the moment TODO **H5** converts the panel stylesheet;
+            // it is a one-line change and the themes then work for free.
             toolTheme: 'dark',
+            allowToolThemeToggle: false,
             rememberPosition: true,
             // Unchanged from the CampaignBrowserWindow era on purpose: position,
             // title-bar mode and theme all hang off this key, so renaming it silently

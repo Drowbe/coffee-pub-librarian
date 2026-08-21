@@ -1,6 +1,25 @@
 # Plan: Codex Data Model — Custom JournalEntryPage Subtype
 
-**Status:** Planned (not started)
+**Status: Phases 1, 2 and 4 have shipped. Only Phase 5 keeps this file alive.**
+
+Phases 1 (model + sheet), 2 (consumers) and 4 (`related`, retain-unresolved links,
+the Auto-Link rescan) are live and are now recorded in `CHANGELOG.md` under 13.0.0
+and `[Unreleased]`, plus `documents/architecture/architecture-codex.md`. Phase 3 was
+verification, and the codex has been running on the data model in production
+throughout. `related` gained its edit and view surfaces in `[Unreleased]`.
+
+**Phase 5 — suggested discoveries — is designed and not built**, and its reasoning
+has no other home: why substring auto-unlock is hazardous (`Lore`, `The Ride`,
+`Old Town`), why an item-type heuristic does not fix it, and why candidates go to the
+GM for review rather than revealing themselves. That section is the reason this file
+is not deleted. Delete it when Phase 5 ships or is abandoned; everything above it is
+history that lives elsewhere now.
+
+The "Status: Planned (not started)" line below was never updated as the phases
+landed — left visible as a reminder that a status line nobody maintains is worse than
+none.
+
+**Original status:** Planned (not started)
 **Reference:** [Module Sub-Types](https://foundryvtt.com/article/module-sub-types/) | [JournalEntryPage API v13](https://foundryvtt.com/api/v13/classes/foundry.documents.JournalEntryPage.html)
 
 ## Why

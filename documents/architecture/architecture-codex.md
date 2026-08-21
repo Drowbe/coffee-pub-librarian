@@ -4,57 +4,114 @@
 
 The Codex system is a journal-based world-building and reference system. It organizes characters, locations, items, events, and other entities with rich metadata, search, and filtering. Each entry is a journal page in a designated codex journal; the panel displays entries by category with tag-based filtering and supports import/export and auto-discovery from party inventories.
 
-## Placement in the Tray
+## Where it renders
 
-- **View**: Codex tab (`viewMode === 'codex'`).
-- **Visibility**: Controlled by `showTabCodex` (user setting).
-- **Container**: `templates/tray.hbs` includes `<div class="panel-container" data-panel="panel-codex"></div>`; `PanelManager` injects the codex panel HTML there.
+The codex browser is a **Blacksmith Tool window** (`scripts/window-codex-browser.js`,
+window id `coffee-pub-librarian-codex-browser`), not a tray tab. It hosts the
+`CodexPanel` by supplying a container the panel renders into:
+
+```html
+<div class="librarian-panel-host" data-position="left">
+    <div class="panel-container" data-panel="panel-codex"></div>
+</div>
+```
+
+`librarian-panel-host` + `data-position="left"` is what `panel-codex.css` keys off.
+Deliberately not `librarian-tray`, which carried the tray's fixed positioning and
+slide-in transform and would fight a window frame.
+
+**Why a Tool window rather than the standard editor base.** The codex is a
+lookaside — something you keep open beside the canvas and search mid-session, which
+is a palette. Blacksmith's own Compendium Search is the reference implementation.
+Quests went the other way, staying on the standard base because they are heading for
+a list-plus-detail layout that wants width and fills the screen. See TODO **A6** for
+the full reasoning; the short version is that the two stopped being the same shape.
+
+The window owns its chrome: the title bar carries Add Entry and the codex options
+menu as Tool header actions, and the footer carries an entry count and a status slot
+the panel writes progress into. The panel renders no title row of its own.
+
+**Theming.** The Tool shell supports Light / Dark / Glass. Librarian pins it to Dark
+and sets `allowToolThemeToggle: false`, because `panel-codex.css` still carries
+hardcoded colours rather than `--blacksmith-tool-*` variables — the other two themes
+would render a dark panel inside a parchment or frosted frame. TODO **H5** is what
+lifts that restriction.
 
 ## Project Files
 
 | File | Class/Purpose |
 |------|---------------|
-| `scripts/panel-codex.js` | `CodexPanel` – main panel UI and panel-side entry actions |
-| `scripts/window-codex.js` | `CodexWindow` – Blacksmith Window API / Application V2 entry create-edit window |
-| `scripts/utility-codex-parser.js` | `CodexParser` – extends `BaseParser`, parses HTML journal content to entry objects |
-| `scripts/utility-base-parser.js` | `BaseParser` – shared `extractFieldFromHTML`, `extractImage`, `extractTags`, `extractLink` |
+| `scripts/panel-codex.js` | `CodexPanel` – list rendering, filtering, and entry actions |
+| `scripts/window-codex-browser.js` | `CodexBrowserWindow` – the Tool window that hosts the panel |
+| `scripts/window-codex.js` | `CodexWindow` – the single-entry create/edit window |
+| `scripts/data/codex-page-model.js` | `CodexPageModel` – the `TypeDataModel` behind the page subtype |
+| `scripts/sheets/codex-page-sheet.js` | `CodexPageSheet` – the journal page's own view/edit sheet |
+| `scripts/utility-codex-index.js` | Shared name→entry lookup: `normalizeName`, `buildCodexPageIndex`, `renderCodexRef` |
+| `scripts/utility-resolver.js` | Name→UUID resolution through Blacksmith's compendium mapping |
+| `scripts/manager-codex-pins.js` | Codex pins, via the Blacksmith Pins API |
+| `scripts/utility-codex-parser.js` | `CodexParser` – **legacy**, see below |
+| `scripts/utility-base-parser.js` | `BaseParser` – shared HTML field extraction, used only by the legacy parser |
 | `templates/panel-codex.hbs` | Panel template |
-| `templates/window-codex.hbs` | Blacksmith-style Codex window template |
-| `templates/handle-codex.hbs` | Handle content for codex view |
+| `templates/window-codex.hbs` | Create/edit window template |
+| `templates/page-codex-fields-view.hbs` | Codex fields on the journal page, read view |
+| `templates/page-codex-fields-edit.hbs` | Codex fields on the journal page, edit form |
 | `styles/panel-codex.css` | Panel styles |
-| `styles/window-codex.css` | Codex window styles layered on Blacksmith shared window classes |
-| `prompts/prompt-codex.txt` | Optional AI-assisted import prompt text |
+| `styles/window-codex-browser.css` | Tool-window shell overrides |
+| `styles/window-codex.css` | Create/edit window styles |
+| `prompts/prompt-codex.txt` | AI-assisted import prompt text |
 
-## Core Design Philosophy
+## Core Design
 
-### 1. **Journal as System of Record**
-The codex system uses FoundryVTT's native Journal system as its data store. Each codex entry is a separate page within a designated journal. This approach provides:
-- **Native FoundryVTT integration**: Entries are standard journal pages, accessible through normal journal workflows
-- **Built-in permissions**: Leverages FoundryVTT's ownership and visibility system
-- **No custom database**: Avoids creating separate data structures that need synchronization
-- **User familiarity**: GMs and players already understand how journals work
+### 1. Journal as system of record
 
-### 2. **Structured HTML Content**
-Entries are stored as HTML with semantic markup using `<strong>` labels and structured paragraphs:
+Each codex entry is a page in a GM-designated journal. Native Foundry storage means
+entries are ordinary documents: standard ownership and visibility, standard search,
+no parallel database to keep in sync, and no bespoke thing for a GM to learn.
+
+### 2. A declared page subtype, not parsed HTML
+
+**This is the load-bearing decision and the one that makes Librarian a module rather
+than a panel.** Codex entries are `coffee-pub-librarian.codex` — a
+`JournalEntryPage` subtype declared in `module.json`, with `CodexPageModel` behind
+it. Structured fields live in `page.system` with schema validation. Free-form lore
+lives in the page's native `text.content` and is edited with ProseMirror through the
+standard journal machinery.
+
+Entries used to be HTML parsed back out of `<strong>` labels:
+
 ```html
 <p><strong>Category:</strong> Characters</p>
-<p><strong>Description:</strong> A mysterious figure...</p>
-<p><strong>Location:</strong> Phlan > Thorne Island</p>
-<p><strong>Tags:</strong> npc, informant, phlan</p>
+<p><strong>Location:</strong> Phlan &gt; Thorne Island</p>
 ```
 
-This approach:
-- **Human-readable**: Entries can be edited directly in journal sheets
-- **Parser-friendly**: Easy to extract structured data via DOM parsing
-- **Flexible**: Can add new fields without schema changes
-- **Enrichable**: Works with FoundryVTT's TextEditor enrichment system
+That is gone. `CodexParser` survives for exactly two jobs — pulling the first
+illustration out of lore for a preview image, and reading a *legacy* untyped page so
+the editor can show something. Nothing writes that format any more, and the panel
+skips pages that are not the subtype, surfacing a one-time notice to the GM instead.
 
-### 3. **Separation of Concerns**
-The system is divided into distinct components:
-- **Parser**: Extracts structured data from HTML
-- **Window**: Handles entry creation/editing
-- **Panel**: Displays and manages entries
-- **Storage**: Journal pages (via FoundryVTT API)
+Two consequences worth carrying:
+
+- **The subtype string has one definition**, `CODEX_PAGE_TYPE` in `const.js`. It must
+  agree exactly with `module.json`'s `documentTypes` entry, or every page fails
+  validation at world load — one console error per page.
+- **Owning a subtype makes export a data-safety question.** With Librarian disabled,
+  Foundry refuses these pages at load, so anything reading the journal reports
+  success over a short list. See "Export completeness, and the subtype hazard".
+
+### 3. Names, not uuids, for entry-to-entry links
+
+`related` and each level of a `location` path reference other codex entries **by
+name**. That is deliberate: a name for an entry that does not exist yet is kept
+verbatim and links itself the moment that entry is created — no migration, no
+rescan, no import ordering problem.
+
+The cost is that every surface showing one has to resolve it, and there are three
+(browser card, journal page view, editor preview). `utility-codex-index.js` exists so
+there is one resolver and one piece of markup rather than three that drift.
+
+Document links are the other thing entirely: `system.links` holds real UUIDs
+resolved through Blacksmith's compendium mapping, and unresolved names are retained
+so Auto-Link can retry them later.
 
 ---
 
@@ -141,14 +198,22 @@ Client-side DOM filtering: search (text across entry content), tag multi-select;
 
 | Setting | Key | Scope | Description |
 |---------|-----|-------|-------------|
-| Show Codex Tab | `showTabCodex` | user | Show/hide Codex tab on tray |
-| Codex Journal | `codexJournal` | world | Journal for codex pages; chosen via panel “Set Journal” or settings; onChange refreshes panel |
+| Codex Journal | `codexJournal` | world | Which journal holds codex pages. Set from the codex options menu or the settings pane. |
 
-**User flags (not in settings UI):**
-- `codexCollapsedCategories` – Object mapping category name to collapsed boolean; persists section expand/collapse
-- `codexTagCloudCollapsed` – Boolean for tag cloud collapse
+Librarian registers no `showTabCodex`; that was Squire's, gating a tray tab that no
+longer exists. The browser is opened from the menubar or by window id.
 
-**Page flag:** `codexUuid` – Set on imported entries for deduplication on re-import.
+**User flags (not in the settings UI):**
+- `codexCollapsedCategories` – category name → collapsed boolean. Read by exact key at
+  render; `_pruneCategoryFlags` strips junk keys left by an older version that derived
+  them from rendered element text.
+- `codexExpandedEntries` – uuids of expanded cards. Entries default to collapsed, so
+  this tracks the exceptions, and is pruned of uuids whose page no longer exists.
+- `codexTagCloudCollapsed` – boolean for the tag cloud.
+
+**Page flags:** `codexUuid` (deduplication on re-import), `pinId` (the entry's canvas
+pin — position and design are Blacksmith's and are never cached here), and
+`squireMigrationBackup` on pages that came through the Squire migration.
 
 ---
 
@@ -200,12 +265,16 @@ Client-side DOM filtering: search (text across entry content), tag multi-select;
 
 ## Key Design Patterns
 
-### 1. **Parser-Based Architecture**
+### 1. Schema, not parsing
 
-Instead of storing structured JSON, the system stores HTML and parses it on-demand. This provides:
-- **Flexibility**: Can add new fields without migration
-- **Human-editable**: GMs can edit entries directly in journals
-- **Version-tolerant**: Parser can handle missing or new fields gracefully
+Structured fields live in `page.system` behind `CodexPageModel`, validated by
+Foundry. The system used to store HTML and parse it back on demand — see "A declared
+page subtype, not parsed HTML" above for what replaced it and why `CodexParser` is
+still present.
+
+The flexibility the old approach bought (add a field without migration) is now the
+schema's job, and the human-editability is better served by the page's own sheet
+than by asking a GM to hand-write `<strong>` labels.
 
 ### 2. **Category-Based Organization**
 
@@ -230,19 +299,55 @@ Leverages FoundryVTT's native ownership system:
 - GMs see all entries with visibility toggle
 - Players only see entries they have permission to view
 - Visibility icon shows current permission level
-- **Unlock notification**: raising an entry's default ownership to Observer fires a transient menubar toast on every other client ("Codex unlocked: X", linked to the entry via `focusCodexInPanel`); a burst of unlocks (e.g. Auto-Discover) collapses into one "*N* codex entries unlocked" toast (`manager-notifications.js`)
+- **No unlock notification.** This section used to describe a transient menubar
+  toast fired on every client when an entry's ownership rose to Observer, collapsing
+  a burst (from Auto-Discover) into one "*N* codex entries unlocked" message. That
+  lived in Squire's `manager-notifications.js`, which **did not come across** —
+  neither the file nor the behaviour exists here. `focusCodexInPanel` survives, in
+  `manager-codex-pins.js`, but only as the pin double-click target.
 
-### 5. **Event Listener Management**
+  Worth deciding rather than leaving implied: revealing codex entries is currently
+  silent, so players learn about it by noticing. If that toast is wanted back it is a
+  new feature, not a restoration.
 
-Uses cloning pattern to prevent duplicate listeners:
+### 5. Event delegation, bound once per container
+
+`CodexPanel` binds **two delegated handlers** — one `click`, one `input` — to the
+container it is handed, and nothing else. The container survives
+`innerHTML = html`, so a re-render costs no rebinding at all. Binding is guarded by
+an `AbortController` held on the panel and released in `destroy()`.
+
 ```javascript
-// Clone element to remove existing listeners
-const newButton = button.cloneNode(true);
-button.parentNode?.replaceChild(newButton, button);
-newButton.addEventListener('click', handler);
+_bindDelegatedListeners(container) {
+    if (this._boundContainer === container) return;   // idempotent per container
+    this._listenersAbort?.abort();
+    this._listenersAbort = new AbortController();
+    this._boundContainer = container;
+    const { signal } = this._listenersAbort;
+    container.addEventListener('click', e => this._onPanelClick(e, container), { signal });
+    container.addEventListener('input', e => this._onPanelInput(e, container), { signal });
+}
 ```
 
-This is especially important when panels re-render frequently.
+`_onPanelClick` dispatches on `closest()`, **ordered most-specific-first**, because
+these selectors nest: an entry's menu button sits inside its title row, which sits
+inside the card. Get the order wrong and the card swallows the button.
+
+This replaced a clone-and-rebind idiom — `cloneNode(true)` + `replaceChild` before
+every `addEventListener`, at fourteen sites plus around twenty per-node binding
+loops. The idiom exists to strip listeners a node already carries, but it ran
+immediately after `container.innerHTML = html`, so every node it touched was
+microseconds old and carried none: roughly 2,200 deep subtree clones per render on a
+314-entry codex, achieving nothing. `panel-quest.js` still does it the old way, at
+seventeen sites; see TODO **A1**.
+
+Two related consequences of the same rewrite:
+
+- **Enriched `@UUID` output is cached** for the session, keyed on `uuid|label`. It
+  was being awaited once per link per render, sequentially within a category.
+- **Search filters the DOM rather than re-rendering.** Re-rendering on a keystroke
+  would rebuild the search input and drop focus and caret — the same reason
+  Blacksmith's Compendium Search paints into its results container instead.
 
 ---
 
@@ -285,12 +390,20 @@ The form template provides:
 ## Hooks Integration
 
 **Blacksmith HookManager (squire.js):**
-- **Journal:** `updateJournalEntryPage` (and create/delete journal page hooks) route to `_routeToCodexPanel(page, changes, options, userId)` when the page is in the selected codex journal and `codexPanel._isCodexEntry(page)` is true. If not `isImporting`, panel runs `_refreshData()` and `codexPanel.render(panelManager.element)`. The same update hook also routes into `manager-notifications.js`, which diffs codex visibility against its ready-time baseline to emit "Codex unlocked" toasts.
+- **Journal:** `manager-journal-routing.js` registers `createJournalEntryPage`,
+  `updateJournalEntryPage` and `deleteJournalEntryPage`, and re-renders whichever
+  campaign panel owns the page's journal. It skips while a panel reports
+  `isImporting`, so a bulk import re-renders once at the end rather than per page,
+  and honours the `librarianSkipCodexRender` update option — a private contract used
+  by the visibility toggle, which patches its own icon in place to avoid losing
+  scroll position and expanded cards.
 
 ## Import/Export and Auto-Discover
 
 ### Import
-- **JSON import**: Dialog with paste area; expects array of codex entry objects. Creates journal pages via `createEmbeddedDocuments`; sets `codexUuid` flag for deduplication. Progress bar via tray progress area. Optional AI-assisted import using `prompts/prompt-codex.txt` template.
+- **JSON import**: Dialog with paste area; expects array of codex entry objects. Creates journal pages via `createEmbeddedDocuments`; sets `codexUuid` flag for deduplication. Progress is reported into the host's status slot — the codex browser puts one in its
+Tool footer. Optional AI-assisted import using the `prompts/prompt-codex.txt` template,
+with campaign placeholders filled from Blacksmith.
 - **Deduplication**: On import, existing pages are matched by `page.getFlag(MODULE.ID, 'codexUuid') === entry.uuid`; matching entries are updated, others created.
 
 ### Export

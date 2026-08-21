@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`related` codex entries can finally be edited and read.** The field shipped in Squire 13.3.12 and has had no UI at any point since: it existed in the data model, the import/export schema and the browser card, and in **zero** edit or view surfaces. A GM could see relationships an import had created but could not add, remove, or even read one anywhere else. All three gaps are closed:
+
+  - **Edit Entry window** — a comma-separated Related Entries field, matching how `tags` works in the same window, with a live preview showing which names currently resolve to an entry and which do not. Deliberately not the drop zone `links` uses next door: these are other codex entries referenced by name, so there is no uuid to drop.
+  - **Journal page edit sheet** — a `<string-tags>` chip control, matching how `tags` works on that sheet.
+  - **Journal page view** — Related is now displayed. This was the worst of the three: "Read more" showed an entry stripped of its relationships while the browser card showed them.
+
+  Naming an entry that does not exist yet stays valid and is the point of the design — the relationship is kept verbatim and links itself the moment that entry is created, with no migration, rescan, or import ordering problem.
+
+- **One codex name→entry resolver, in `scripts/utility-codex-index.js`.** `normalizeName`, `buildCodexPageIndex` and `renderCodexRef` were private to `panel-codex.js`; the journal page view and the editor window both needed them, and copying was how the category icon map drifted between the panel and the pin manager before it moved to `const.js`. A codex reference now renders identical markup in all three places and can only differ in what a click does, which is the one thing that legitimately varies by surface.
+
 ### Fixed
 
 - **The Blacksmith window registry could not open either browser.** `registerCampaignBrowserWindows` registered an opener calling `openQuestBrowser`, which stopped existing in 13.0.0 when the file was renamed and the function became `openCampaignBrowser` — so `blacksmith.openWindow('coffee-pub-librarian-quest-browser')` threw a `ReferenceError`. Nothing caught it because the menubar tools reach `module.api.openCampaignBrowser` directly and never route through the registry.
@@ -51,10 +63,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`testing/preflight.py` now verifies every Handlebars helper a template calls has someone registering it**, reading Blacksmith's set from its source rather than assuming it, so Blacksmith dropping one is caught too. Handlebars fails at *render* time with "Missing helper", not at load, so a helper used on one screen can go missing while every other screen still looks correct — which is how the `isArray` removal above got as far as it did. Subexpressions are counted, and the check looks only inside `{{ }}` so that prose like "(GM only)" is not reported as a helper.
 
+- **Editing a quest pin's visibility now warns instead of silently doing nothing.** An audit confirmed quest pins had the exact shape codex pins had before their warning was added, rather than merely resembling it: the pin's `ownership` is what gates players, not `config.blacksmithVisibility`, and `syncQuestPinOwnership` re-derives both from the quest's `visible` flag and the objective's state. So a GM changing visibility in Blacksmith's Configure Pin was making a no-op that looked like it worked and got reverted by the next sync. `manager-quest-pins.js` had no `pins.on('updated')` subscription at all; it now has one, sharing the `AbortController` that `initQuestPins` already created.
+
+- **New codex entries created from the editor window start hidden.** The import path has always created pages with `ownership.default: NONE`; the editor omitted ownership and inherited the journal's default, so the same codex could hold entries with two different starting visibilities depending on how each was made. Hidden is the safe default for campaign content — an entry revealed by accident cannot be un-revealed from the players' memory. Applied on create only; editing never touches ownership, which is the visibility toggle's job.
+
+- **`squireSkipCodexRender` renamed to `librarianSkipCodexRender`.** A private update-option contract between `panel-codex.js` and `manager-journal-routing.js` that outlived the module it was named for. Both halves changed together, which is the only safe way — a half-rename silently returns the codex visibility toggle to triggering full re-renders.
+
 ### Documentation
 
 - **The export/subtype hazard now lives in `documents/architecture/architecture-codex.md`**, under "Export completeness, and the subtype hazard". It was briefly written into the migration runbook, which was the wrong home: it is a permanent consequence of owning a declared page subtype, not a step in a migration that is now finished. The runbook points at it instead.
 - **`utility-resolver.js` no longer cites `documents/architecture-squire.md`**, a file that never existed in this repo, and its header no longer describes Librarian's behaviour as Squire's.
+
+- **Both architecture documents described a module that no longer exists.** `architecture-codex.md` and `architecture-quests.md` came across from Squire and were never rewritten. They described the tray as the host, named five files absent from this repo (`templates/tray.hbs`, `handle-codex.hbs`, `handle-quest.hbs`, `scripts/manager-pins.js`, `scripts/manager-notifications.js`), and the codex one built its "Core Design Philosophy" on *Structured HTML Content* and a *Parser-Based Architecture* — which the data model replaced in 13.0.0. That mattered more than ordinary staleness, because the project's own rule points a contributor at these files when work lands.
+
+  Corrected rather than rewritten, to avoid discarding detail that is still accurate. The codex document now describes the Tool window host, the page subtype, the shared name→entry resolver, delegated event handling, and the export/subtype hazard; the quest document describes the real hook wiring and pin event subscriptions. **Two sections were replaced with an explicit statement that the feature was not ported** — the codex "unlock notification" and the quest "transient event toasts" both lived in Squire's `manager-notifications.js`, which never came across. Documenting behaviour a reader cannot find is worse than documenting nothing, and both are now flagged as new features rather than restorations if they are ever wanted.
+
+- **`testing/` gained a link-resolution fixture and a README.** `fixture-link-resolution.json` carries four controls, deliberately including failures: a self-link that must resolve, a self-link miss that must stay *out* of the GM-facing count as speculative, an explicit link miss that must be counted **and** retained for Auto-Link to retry, and a `related` pair where one name resolves and one must survive as plain text. Name resolution silently did nothing for years in Squire precisely because "it linked" cannot distinguish a working resolver from an indiscriminate one, and a fixture of names that all *should* resolve proves nothing.
+
+- **The 13.0.0 entry now records the link-resolution work that shipped with the codex port** — name→document resolution through Blacksmith's compendium mapping, retention of unresolved names, the Auto-Link retry, and `related`. The detail existed only in `plan-codex-datamodel.md`, which meant the plan could not be retired.
 
 ### Removed
 
@@ -87,6 +113,11 @@ the quest half separately.
   - `macros/migrate-quests-from-squire.js` hands existing data over: quest settings, page flags, per-user quest state, and the `moduleId` on every quest and objective pin — which is what makes pins placed under Squire visible here. It copies rather than moves, so it is safe to re-run and changes nothing about Squire.
   - Helpers were taken as a subset rather than copied for symmetry — sixteen functions quests actually call, not the whole of Squire's helpers file.
 - **Codex arrives from Squire.** The browser, the single-entry editor, the parser, the page subtype and its sheet, codex pins, and import/export. Launched from the Blacksmith menubar beside Quests.
+  - **Link resolution and entry relationships shipped with it**, recorded here after the fact — this entry originally listed only the port itself, while `documents/plans/plan-codex-datamodel.md` carried the detail. Three connected pieces, all live since the first release:
+    - **`links` resolve names to documents** through Blacksmith's compendium mapping (`api.compendiums.resolveMany`). An entry's own name is resolved against a type derived from its category; cross-references carry their own `type`. Resolution is reported to the GM as "linked N references / M did not resolve", with self-link misses kept out of the count as speculative — most Locations and Factions legitimately have no document of the same name.
+    - **Unresolved names are retained**, not discarded. A codex is authored incrementally and the source JSON is gone after import, so a name written before its document exists is a real statement. It renders as plain text and keeps `name`/`type` so it can be retried.
+    - **Auto-Link Unresolved Links**, in the codex options menu, is that retry: a GM-triggered pass over every entry holding an unresolved link. Manual by design, since it is a bulk write to journal pages.
+  - **`related` — entry-to-entry relationships by name** also shipped here, in the data model, the import/export schema and the browser card. It had no edit or view UI until the `[Unreleased]` entry above; that gap was the field's whole history until then.
   - **Run `macros/migrate-codex-from-squire.js` with both modules enabled before updating Squire.** Unlike the quest migration, this one rewrites the page `type` on live documents: codex pages are a declared subtype, so they must be re-typed from `coffee-pub-squire.codex` to `coffee-pub-librarian.codex`. It updates in place so page ids — and therefore the `codexUuid` every codex pin references — survive, writes `type` and `system` in the same update so the entry data is not reset to model defaults, and stashes the original of both in a flag so `REVERT = true` puts it back.
   - Verifying with Squire disabled only means something **after** migrating. Pages still typed `coffee-pub-squire.codex` fail validation when nothing declares that subtype, so the codex would look broken for reasons unrelated to Librarian.
 - **Journal page changes now reach the open browser.** A new `manager-journal-routing.js` re-renders the quest or codex panel when a page in its journal is created, updated or deleted. Squire did this and it was missed in the quest port — the quest window refreshes its own panel after saving, so the round-trip everyone tested worked while edits from the journal sheet, another client, or a macro left the browser stale.

@@ -5,6 +5,7 @@ import { CODEX_PAGE_TYPE } from './data/codex-page-model.js';
 import { trackModuleTimeout } from './timer-utils.js';
 import { getTextEditor } from './helpers.js';
 import { codexLinkKey, normalizeCodexLink } from './utility-resolver.js';
+import { buildCodexPageIndex, renderCodexRef } from './utility-codex-index.js';
 import { updateCodexPin as updateCodexPinForEntry } from './manager-codex-pins.js';
 
 function getBlacksmith() {
@@ -94,6 +95,7 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
                     plotHook: sys.plotHook || '',
                     location: sys.location || '',
                     links: sys.linkList,
+                    related: Array.from(sys.related || []),
                     tags: Array.from(sys.tags || []),
                     expandedDetails: rawContent
                 };
@@ -145,8 +147,32 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
             existingCategories: this._getExistingCategories(),
             existingLocations: this._getExistingLocations(),
             locationLevels: this._getLocationLevels(),
-            suggestedTags: this._getSuggestedTags()
+            suggestedTags: this._getSuggestedTags(),
+            relatedString: (this.entry.related || []).join(', '),
+            // A live preview of what each name currently resolves to, so an author can
+            // see at a glance which of their relationships are linked and which are
+            // still waiting on an entry that does not exist yet. Same index and same
+            // markup as the browser card and the journal page view.
+            relatedHtml: this._getRelatedPreview()
         };
+    }
+
+    /**
+     * Resolved preview of `related`, against the configured codex journal.
+     * @private
+     */
+    _getRelatedPreview() {
+        const related = this.entry.related || [];
+        if (!related.length) return [];
+        try {
+            const journalId = game.settings.get(MODULE.ID, 'codexJournal');
+            const journal = journalId && journalId !== 'none' ? game.journal.get(journalId) : null;
+            const index = buildCodexPageIndex(journal);
+            return related.map(name => renderCodexRef(name, index)).filter(Boolean);
+        } catch (error) {
+            console.warn('Coffee Pub Librarian | Could not preview related entries:', error);
+            return [];
+        }
     }
 
     /**
@@ -390,6 +416,7 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
             plotHook: '',
             location: '',
             links: [],
+            related: [],
             pageUuid: null,
             tags: [],
             expandedDetails: ''
@@ -614,6 +641,8 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
         entry.category = this._normalizeCategoryValue(entry.category);
         entry.categoryIcon = String(entry.categoryIcon || '').trim();
         entry.tags = this._normalizeTags(entry.tags);
+        // Same comma-separated shape as tags, so the same normalizer applies.
+        entry.related = this._normalizeTags(entry.related);
 
         // Hard guard on mandatory fields — never hand invalid data to the document layer
         if (!entry.name) {
@@ -649,6 +678,9 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
                 plotHook: entry.plotHook || '',
                 location: entry.location || '',
                 links: this._normalizeLinks(this.entry.links),
+                // Names, not uuids: resolved at render against the codex journal, so a
+                // name whose entry does not exist yet is kept and links itself later.
+                related: this._normalizeTags(entry.related),
                 tags: entry.tags || [],
                 // Don't freeze a lore-derived preview image into system.img — the entry
                 // image stays dynamic (first Expanded Details illustration) unless the
@@ -661,6 +693,18 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
                 system: systemData,
                 text: { content: entry.expandedDetails ?? '' }
             };
+
+            // A new entry starts hidden, matching the import path — which has always
+            // created pages with `ownership.default: NONE`. This window used to omit
+            // ownership entirely and inherit the journal's default, so the same codex
+            // could have two different starting visibilities depending on how the
+            // entry was made. Hidden is the safe default for campaign content: an
+            // entry revealed by accident cannot be un-revealed from the players'
+            // memory. Only applied on create; editing never touches ownership, which
+            // is the visibility toggle's job.
+            if (!this.isEditing) {
+                pageData.ownership = { default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE };
+            }
 
             if (this.isEditing && this.pageUuid) {
                 const page = this.page || await fromUuid(this.pageUuid);
@@ -1048,6 +1092,9 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
 
         const plotHookTextarea = form.querySelector('textarea[name="plotHook"]');
         if (plotHookTextarea) plotHookTextarea.value = this.entry.plotHook || '';
+
+        const relatedInput = form.querySelector('input[name="related"]');
+        if (relatedInput) relatedInput.value = (this.entry.related || []).join(', ');
 
         const tagsInput = form.querySelector('input[name="tags"]');
         if (tagsInput) tagsInput.value = (this.entry.tags || []).join(', ');

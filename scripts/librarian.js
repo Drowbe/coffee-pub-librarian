@@ -142,6 +142,22 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to register the codex window:`, error);
     }
 
+    // Neither tool declares `supersedes`, and that is a decision rather than an
+    // oversight.
+    //
+    // `registerMenubarTool` accepts `supersedes: [toolId]` to drop or refuse a
+    // duplicate registration in either load order, and Blacksmith kept the mechanism
+    // specifically because "the Librarian extraction meets the same problem" — a user
+    // with one module updated and the other not would see two Quests icons.
+    //
+    // But Blacksmith also removed its own three `supersedes` entries once it was
+    // clear they "were written to protect users who do not exist", and left the rule:
+    // ask who the affected user is before building the affordance. Squire has already
+    // shipped 13.8.1 with its quest and codex code deleted, so there is no release
+    // pairing in which both modules register these tools. The answer is nobody.
+    //
+    // Revisit only if Librarian ships to a world that updates the two independently.
+    // Squire's ids were `squire-quests` / `squire-codex`.
     if (typeof blacksmith.registerMenubarTool === 'function') {
         try {
             blacksmith.registerMenubarTool('librarian-quests', {

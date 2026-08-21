@@ -1,6 +1,7 @@
 import { MODULE, TEMPLATES, getCodexCategoryIcon } from './const.js';
 import { CodexParser } from './utility-codex-parser.js';
 import { CODEX_PAGE_TYPE } from './data/codex-page-model.js';
+import { normalizeName, buildCodexPageIndex, renderCodexRef } from './utility-codex-index.js';
 import { copyToClipboard, getNativeElement, renderTemplate, getTextEditor, escapeHtml, getPartyActors, hasPrimaryParty, showBlacksmithWait, fillCampaignPlaceholders } from './helpers.js';
 import { trackModuleTimeout, moduleDelay } from './timer-utils.js';
 import { showJournalPicker } from './utility-journal.js';
@@ -26,19 +27,6 @@ function getBlacksmith() {
 }
 
 /**
- * Normalize a name for matching: lowercase, collapse interior runs of
- * whitespace, trim. "Wayfinder  Casing" and "Wayfinder Casing" are the same name.
- *
- * Used for both inventory auto-discovery and codex entry references. BOTH sides
- * of every comparison must go through this — inlining the expression is how the
- * codex-entry side drifted from the item side and stopped matching any name
- * containing a double space.
- */
-function normalizeName(name) {
-    return String(name ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
-}
-
-/**
  * Item types the codex inventory scan considers "something the party owns".
  *
  * `container` is the dnd5e 5.x type for backpacks/pouches; `backpack` is its
@@ -55,29 +43,6 @@ function normalizeName(name) {
 const CODEX_SCAN_ITEM_TYPES = Object.freeze([
     'equipment', 'consumable', 'tool', 'loot', 'weapon', 'container', 'backpack'
 ]);
-
-/**
- * Index every codex entry in the journal by normalized name, for resolving
- * `related` names and location levels to pages.
- *
- * Built fresh per render rather than cached: the index changes whenever ANY
- * entry is added or renamed, so a cached one would leave "Phlan" unlinked after
- * "Moonsea" is created. It is one O(n) pass over pages already in memory.
- *
- * Respects the viewer: entries a player can't observe are omitted, so their
- * names render as plain text rather than as links to something they can't open.
- */
-function buildCodexPageIndex(journal) {
-    const index = new Map();
-    for (const page of (journal?.pages ?? [])) {
-        if (page.type !== CODEX_PAGE_TYPE) continue;
-        if (!game.user.isGM
-            && (page.ownership?.default ?? 0) < CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER) continue;
-        const key = normalizeName(page.name);
-        if (key && !index.has(key)) index.set(key, { uuid: page.uuid, name: page.name });
-    }
-    return index;
-}
 
 /**
  * Session cache for enriched `@UUID[uuid]{label}` output.
@@ -345,24 +310,13 @@ export class CodexPanel {
     }
 
     /**
-     * Render a reference to another codex entry by name.
-     *
-     * Resolved → an anchor the panel opens on click. Unresolved → the plain name,
-     * which is NOT an error: a codex is authored incrementally, so a relationship
-     * may name an entry that doesn't exist yet. It becomes a link on the next
-     * render after that entry is created — no rescan, no stored uuid to migrate.
-     *
-     * @param {string} name
-     * @param {Map<string, {uuid: string, name: string}>} index
-     * @returns {string} HTML
+     * Panel-side codex reference. The markup is shared with the journal page's view
+     * sheet — see utility-codex-index.js — so the two cannot drift; only the click
+     * behaviour differs, and that lives in the delegated handler.
      * @private
      */
     _renderCodexRef(name, index) {
-        const raw = String(name ?? '').trim();
-        if (!raw) return '';
-        const hit = index.get(normalizeName(raw));
-        if (!hit) return `<span class="codex-ref-unresolved">${escapeHtml(raw)}</span>`;
-        return `<a class="codex-ref" data-uuid="${escapeHtml(hit.uuid)}">${escapeHtml(raw)}</a>`;
+        return renderCodexRef(name, index);
     }
 
     /**
@@ -935,7 +889,7 @@ export class CodexPanel {
         // Skip the full re-render this ownership change would otherwise trigger via
         // the updateJournalEntryPage hook: it resets scroll and collapses cards,
         // making the GM re-find their place. Patch the icon in place instead.
-        await page.update({ 'ownership.default': next }, { squireSkipCodexRender: true });
+        await page.update({ 'ownership.default': next }, { librarianSkipCodexRender: true });
         await updateCodexPinVisibility(uuid);
 
         button.classList.toggle('visible', isVisible);

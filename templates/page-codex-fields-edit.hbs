@@ -41,6 +41,18 @@
         </div>
     </div>
 
+    {{!--
+        Related is a chip control, not a drop zone: these are other codex entries
+        referenced by NAME, resolved at render, so there is no uuid to drop. Naming
+        an entry that does not exist yet is valid and deliberate — the relationship
+        links itself once that entry is created.
+    --}}
+    <div class="form-group codex-edit-full">
+        <label for="{{document.id}}-codex-related">Related Entries</label>
+        <string-tags id="{{document.id}}-codex-related" name="system.related" value="{{relatedString}}"></string-tags>
+        <p class="codex-edit-hint">Other codex entries this one is bound up with, by name. A name with no entry yet is kept and links itself later.</p>
+    </div>
+
     <div class="form-group codex-edit-full">
         <label for="{{document.id}}-codex-tags">Tags</label>
         <string-tags id="{{document.id}}-codex-tags" name="system.tags" value="{{tagsString}}"></string-tags>

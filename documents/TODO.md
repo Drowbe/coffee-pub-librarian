@@ -34,23 +34,13 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | ID | Sev | Area | Item | Size |
 |---|---|---|---|---|
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
-| **H5** | High | Blacksmith API | CSS uses 69 raw hex literals and 3 design tokens | M |
+| **H5** | High | Blacksmith API | 93 hardcoded colours in `panel-codex.css`; Tool themes disabled until converted | M |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — now shipped; drops ~600 duplicated lines | M |
-| **H7** | High | Codex | `related` has no edit or view UI anywhere | M |
 | **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
-| **M3** | Medium | Quests | **AUDIT** — quest pin visibility may share the codex pin no-op | M |
-| **M6** | Medium | Codex | New entries from the editor window set no ownership; import does | S |
-| **M7** | Medium | Quests | Three quest-status vocabularies; `Complete` still load-bearing on two paths | S |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
-| **M9** | Medium | Naming | `squireSkipCodexRender` outlived its module | S |
 | **L1** | Low | v14 | Bare `FilePicker` and `saveDataToFile` globals | S |
-| **L3** | Low | Docs | Doc paths drifted after the `documents/` reorganisation | S |
-| **L4** | Low | Docs | CHANGELOG 13.0.0 omits Auto-Link, `related`, and retain-unresolved links | S |
-| **L5** | Low | Testing | No link-resolution test fixture | S |
 | **L6** | Low | Debt | `utility-base-parser.js` / `utility-journal.js` duplicated with Squire | — |
-| **L7** | Low | Menubar | Decide whether Librarian's menubar tools declare `supersedes` | S |
 | **L8** | Low | Quests | Objective pin tooltip: assets exist, nothing renders them | S |
-| **L9** | Low | Docs | Both architecture docs still describe Squire's tray and five files that don't exist | M |
 | **A1** | Decision | Architecture | Quests are still HTML-parsed; codex is not | L |
 | **A2** | Decision | Architecture | Journal routing bypasses Blacksmith's HookManager | S |
 | **A3** | Decision | Architecture **[EXT]** | No Blacksmith API covers a panel-style entity browser | — |
@@ -86,6 +76,16 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 | **H10** | Whole dataset JSON-serialised and reparsed every render | *(same entry)* |
 | **M1** | Tag filter wiped `codexCollapsedCategories` and never restored it | *Filtering the codex by a tag no longer permanently expands every category* |
 | **H11** | Progress bar dead since Squire 13.6.0, plus ~10s of pauses staged for it | *Progress reporting works again, in the window footer* |
+| **H7** | `related` had no edit or view UI on any of three surfaces | *`related` codex entries can finally be edited and read* |
+| **M7** | Status doc comment described a vocabulary nothing writes | *(comment corrected; `Complete` confirmed live, hedges kept — rest is **A1**)* |
+| **M3** | Quest pin visibility edits were a silent no-op, as codex had been | *Editing a quest pin's visibility now warns instead of silently doing nothing* |
+| **M6** | Editor-created entries inherited journal ownership; import set NONE | *New codex entries start hidden, matching the import path* |
+| **M9** | `squireSkipCodexRender` outlived its module | *Renamed to `librarianSkipCodexRender`* |
+| **L3** | Doc paths after the `documents/` reorganisation | *Verified — no stale flat paths remain* |
+| **L4** | CHANGELOG 13.0.0 omitted link resolution, Auto-Link and `related` | *Recorded retroactively under 13.0.0* |
+| **L5** | No link-resolution fixture | *`testing/fixture-link-resolution.json` + `testing/README.md`* |
+| **L7** | Whether the menubar tools declare `supersedes` | *Decided: no. Reasoning recorded in `librarian.js`* |
+| **L9** | Both architecture docs described Squire's tray and absent files | *Architecture docs corrected* |
 
 Two changes in `[Unreleased]` were never tracked items and have no row: the
 **Blacksmith minimum bump** to 13.19.0, which came out of the deployment
@@ -164,17 +164,74 @@ implemented**; do not use it.
 
 ### H5 — CSS ignores the design system
 
-`styles/` contains **69 raw hex colour literals** and **3** `var(--blacksmith-*)`
-references. `design-tokens.md` states the rule directly: *"new CSS references
-tokens rather than repeating literal values."*
+`styles/` contains raw colour literals almost everywhere and only a handful of
+`var(--blacksmith-*)` references. `design-tokens.md` states the rule directly:
+*"new CSS references tokens rather than repeating literal values."*
+
+**This stopped being hygiene and became functional.** The codex browser is a Tool
+window now, and the Tool shell offers Light / Dark / Glass in its controls menu —
+but `panel-codex.css` carries **93 hardcoded colours** (17 hex, 76 `rgba()`) and no
+tool variables, so Light and Glass render a dark panel inside a parchment or frosted
+frame. `allowToolThemeToggle: false` is set on `window-codex-browser.js` for exactly
+that reason; converting the panel stylesheet is what lets it come back off, and that
+is a one-line change once this lands.
+
+Do the codex half first — it is the half with a broken feature waiting on it.
 
 `window-import-export.css` additionally carries 25 `!important` declarations,
 inherited from the Squire copy.
 
-**Fix:** convert to the token scale (`--blacksmith-space-*`,
-`--blacksmith-surface-*`, `--blacksmith-color-brand-*`), always with a literal
-fallback so the module degrades if Blacksmith is disabled. Read
-`design-system/design-extending.md` first.
+**Fix:** convert to the token scale (`--blacksmith-space-*`, and the
+`--blacksmith-tool-*` family for anything inside the Tool shell), always with a
+literal fallback so the module degrades if Blacksmith is disabled. Blacksmith's
+`styles/window-compendium-search.css` is the worked example: zero colour literals,
+five variables, follows all three themes with no theme-specific rules of its own.
+Read `design-system/design-extending.md` first.
+
+#### Inventory — `panel-codex.css`, most-used first
+
+Generated so the work is mechanical rather than exploratory. "Appears as" is the CSS
+property each literal is used in, which is what decides the token.
+
+| Literal | Uses | Appears as | Likely token |
+|---|---|---|---|
+| `#ff6400` | 9 | colorx7, border-leftx2 | brand accent — **keep literal** |
+| `rgba(159, 146, 117, 0.9)` | 5 | colorx5 | `--blacksmith-tool-text` / `-text-muted` |
+| `rgba(255, 255, 255, 0.1)` | 4 | border-topx1, border-bottomx1, backgroundx1 | `--blacksmith-tool-divider` / `-field-border` |
+| `rgba(255, 255, 255, 0.9)` | 4 | colorx4 | `--blacksmith-tool-text` / `-text-muted` |
+| `rgba(0, 0, 0, 0.3)` | 3 | backgroundx3 | `--blacksmith-tool-surface-*` |
+| `rgba(255, 255, 255, 0.2)` | 3 | borderx2, border-topx1 | `--blacksmith-tool-divider` / `-field-border` |
+| `rgba(244, 221, 104, 0.2)` | 3 | ?x2, borderx1 | semantic/state — **keep literal** |
+| `rgba(0, 0, 0, 0.2)` | 2 | backgroundx2 | `--blacksmith-tool-surface-*` |
+| `rgba(255, 255, 255, 0.05)` | 2 | borderx1, backgroundx1 | `--blacksmith-tool-divider` / `-field-border` |
+| `rgba(0, 0, 0, 0.4)` | 2 | backgroundx1, box-shadowx1 | shadow — keep or tune per theme |
+| `#fff` | 2 | colorx2 | `--blacksmith-tool-text` / `-text-muted` |
+| `rgba(185, 84, 61, 0.9)` | 2 | backgroundx1, colorx1 | semantic/state — **keep literal** |
+| `#e2551d` | 2 | colorx2 | brand accent — **keep literal** |
+| `#ff7a3c` | 2 | colorx2 | brand accent — **keep literal** |
+| `rgba(255, 100, 0, 0.08)` | 2 | backgroundx2 | `--blacksmith-tool-surface-*` |
+| `rgba(255, 47, 47, 0.0)` | 2 | border-colorx2 | semantic/state — **keep literal** |
+| `rgba(244, 221, 104, 0)` | 2 | ?x2 | semantic/state — **keep literal** |
+
+#### The trap this inventory exposes
+
+**The same literal is used in different roles.** `rgba(255, 255, 255, 0.1)` is a
+`border-top`, a `border-bottom` **and** a `background`; `rgba(0, 0, 0, 0.4)` is a
+`background` and a `box-shadow`. A global find-and-replace would map all of them to
+one token and quietly conflate a divider with a surface — wrong in a way that only
+shows up visually, under a theme nobody is looking at.
+
+So this is **per-occurrence**, not per-value. Roughly a third of the literals should
+not move at all: `#ff6400` / `#e2551d` / `#ff7a3c` are Librarian's brand accent, and
+the red / blue / yellow `rgba()` values are state colours, neither of which is
+theme-dependent.
+
+#### Do it with the window open
+
+The reason this was not done unattended: correctness here is *visual*. Convert, then
+check all three themes with a real codex loaded — Glass is the one that exposes
+mistakes, because a surface that should be translucent and a divider that should not
+look identical under Light and Dark.
 
 ### H6 — Adopt `api.importer`
 
@@ -223,32 +280,6 @@ Once this lands, `showBlacksmithWait` in [`helpers.js`](../scripts/helpers.js) l
 its only two callers and should go with it, along with its stale header comment
 about being "blocked on the public Blacksmith Importer API".
 
-### H7 — `related` has no edit or view UI
-
-Shipped in Squire 13.3.12 and carried across intact: `related` appears in the
-import/export schema, the data model, and the panel card — and in **zero** edit or
-view surfaces. The string does not occur in `window-codex.js`,
-`templates/window-codex.hbs`, `sheets/codex-page-sheet.js`,
-`page-codex-fields-edit.hbs`, or `page-codex-fields-view.hbs`. Three gaps:
-
-- **Edit Entry window** — cannot add, remove, or see related entries. `links` next
-  door has a full drop-zone-and-chips UI. Related entries are plain names resolved
-  at render, not UUIDs, so this wants a chip-style text control (`<string-tags>`,
-  as `tags` uses) and **not** a drop zone.
-- **Journal page edit form** — same gap on the page sheet.
-- **Journal page view** — the bigger miss: Related is not *displayed* on the page
-  at all, so "Read More" shows an entry stripped of its relationships. The card
-  shows them; the full page does not.
-
-Not data-destructive today: both save paths write `page.update({ system: … })`,
-which **merges**, so a field absent from the payload survives (`discoveredBy` has
-always relied on this). A GM can edit an entry without wiping `related` — they
-simply cannot touch it. **Verify that still holds** if either save path ever
-changes to replace rather than merge.
-
-Reuse the panel's page index and `_renderCodexRef()` rather than growing a second
-name→page lookup.
-
 ---
 
 ## Medium
@@ -267,55 +298,6 @@ render — which is why pinning an entry appeared to collapse its category.
 Delete the redundant pass; the template is correct. The same trim-match appears at
 three sites (search for `attrValue.trim() === category.trim()`).
 
-### M3 — AUDIT: quest pin visibility
-
-Quest pin visibility may share the silent no-op that was fixed for codex pins.
-Visibility is *derived*, never configured, and the pin's `ownership` — not
-`config.blacksmithVisibility` — is what actually gates players. A GM editing
-visibility in Blacksmith's Configure Pin changes nothing and gets reverted by the
-next sync.
-
-`createQuestPin` derives from the page's `visible` flag; `createObjectivePin`
-derives from quest/objective state. Codex has the warning
-(`_warnIfCodexPinVisibilityEdited`); quests do not.
-
-See **A4** — `api-notes.md` documents Blacksmith's own answer to this exact
-problem, and it may make the warning unnecessary rather than needing a second copy.
-
-### M6 — New codex entries set no ownership
-
-The import path explicitly creates pages with
-`ownership: { default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE }`
-([`panel-codex.js`](../scripts/panel-codex.js)), so an imported entry starts hidden
-from players. The editor window's create path
-([`window-codex.js` `_updateObject`](../scripts/window-codex.js)) omits `ownership`
-entirely and inherits the journal default.
-
-Two ways to create an entry, two different starting visibilities. Pick one — almost
-certainly hidden — and apply it in both.
-
-### M7 — Three quest-status vocabularies, none authoritative
-
-`normalizeQuestStatus` is now the only definition, and it emits **Available /
-Active / Succeeded / Failed**. Two other vocabularies still contradict it in
-`panel-quest.js`:
-
-- `_applyQuestStatus` documents persisted values as *"`Not Started`, `In Progress`,
-  `Complete`, `Failed` (UI labels: Available, Active, Succeeded, Failed)"* — a set
-  nothing writes and nothing reads.
-- `_setObjectiveState` hedges with `['Complete', 'Succeeded'].includes(currentStatus)`
-  and `_importQuestsFromData` tests `quest.status === 'Complete'`, so `Complete`
-  is still load-bearing on the import and objective paths even though the
-  normalizer never produces it.
-
-The hedges are the smell: they exist because nobody could say which value a page
-actually holds. Establish that first — a page written before the normalizer landed
-may genuinely hold `Complete` — then either migrate those pages or keep the
-compatibility test with a comment saying why. Do not simply delete the hedge.
-
-The stale doc comment is free to fix now. **A1** settles the rest structurally, by
-making status a schema field rather than a string parsed out of markup.
-
 ### M8 — Adopt `api.entityList` for participant selection
 
 `window-quest.js` builds party-participant pickers by hand. `api.entityList`
@@ -325,14 +307,6 @@ screen-reader semantics from native inputs, and a documented read contract.
 Note the documented trap when adopting it: use `readFrom(root)` at submit time, not
 `getSelection()`. A list seeded with a current selection whose `attach` silently
 failed hands that seed back and is indistinguishable from a user choice.
-
-### M9 — `squireSkipCodexRender`
-
-An update-option name that outlived its module. `panel-codex.js` sends it
-([:1083](../scripts/panel-codex.js#L1083)) and `manager-journal-routing.js` reads it
-([:34](../scripts/manager-journal-routing.js#L34)). Renaming means changing both
-halves in one commit — small, but it must be atomic or the codex visibility toggle
-starts triggering full re-renders again.
 
 ---
 
@@ -354,31 +328,6 @@ Both `FilePicker` sites are guarded with `typeof FilePicker !== 'function'`, so 
 failure mode is a silent missing feature rather than an error. Blacksmith ships
 `documentation/plans/migration-v14.md` — read it before doing this.
 
-### L3 — Doc paths drifted after the `documents/` reorganisation
-
-Architecture docs moved to `documents/architecture/` and plans to
-`documents/plans/`. Sweep for references to the old flat paths, including in
-`CHANGELOG.md` and any macro headers.
-
-### L4 — CHANGELOG omits shipped Phase 4 work
-
-[`documents/plans/plan-codex-datamodel.md`](plans/plan-codex-datamodel.md) records
-Phase 4 as implemented July 15, 2026 — `related` entries, retain-unresolved links,
-and the Auto-Link rescan tool. `CHANGELOG.md` 13.0.0 does not mention any of the
-three, though all are present in the code.
-
-Per the completion rule, this is the gap that keeps Phase 4 from being closeable.
-Reconcile the changelog, then Phases 1–2 and 4 can be struck from the plan; Phase 3
-(verification) and Phase 5 (suggested discoveries, designed but not built) keep the
-plan alive.
-
-### L5 — Link-resolution test fixture
-
-Keep a fixture in the repo: a quest JSON with a known-good name **and a
-guaranteed-miss control**. Name resolution silently did nothing for years in Squire
-and nobody noticed — "it linked" alone cannot distinguish a working resolver from
-an indiscriminate one.
-
 ### L6 — Duplicated parsers with Squire
 
 `utility-base-parser.js` and `utility-journal.js` exist in both modules. Squire
@@ -387,26 +336,6 @@ Blacksmith — not before. No action now; recorded so the duplication is deliber
 rather than forgotten.
 
 ---
-
-### L7 — Decide whether the menubar tools declare `supersedes`
-
-`registerMenubarTool` accepts `supersedes: [toolId, ...]`, which drops or refuses a
-duplicate registration in either load order. Blacksmith's
-`plan-squire-tool-adoption.md` kept the mechanism specifically because *"the
-Librarian extraction meets the same problem"* — a user with one module updated and
-the other not sees two identical Quests icons.
-
-Librarian's two tools (`librarian-quests`, `librarian-codex`) declare nothing today.
-
-But the same plan removed its own three `supersedes` entries on the grounds that
-they *"were written to protect users who do not exist"*, and left this instruction:
-**ask who the affected user is before building the affordance.** For a single
-consumer releasing both modules together, the answer is nobody.
-
-**Action is to record the decision, not necessarily to write code.** Note it here so
-it is not relitigated, and revisit only if Librarian ever ships to a world that
-updates the two modules independently. Squire's tool ids are `squire-quests` /
-`squire-codex` if it turns out to be needed.
 
 ### L8 — The objective pin tooltip is designed but not implemented
 
@@ -425,30 +354,6 @@ So this is a real half-finished feature, not debris. Hovering an objective pin o
 the canvas shows nothing today. Either implement it against
 `manager-quest-pins.js` — which already has the `pins.on('hover')` surface it would
 need — or delete all three assets. Do not leave it as-is indefinitely.
-
-### L9 — The architecture docs describe a module that no longer exists
-
-Both `documents/architecture/architecture-codex.md` and `architecture-quests.md`
-came across from Squire and were never rewritten for Librarian. They still describe
-the tray as the host, and between them name five files that do not exist here:
-`templates/tray.hbs`, `templates/handle-codex.hbs`, `templates/handle-quest.hbs`,
-`scripts/manager-pins.js`, `scripts/manager-notifications.js`.
-
-The codex one is the worse of the two. It has a "Placement in the Tray" section
-keyed on `viewMode === 'codex'` and a `showTabCodex` setting Librarian never
-registers, describes `PanelManager` injecting the panel, and its "Core Design
-Philosophy" is built on **Structured HTML Content** and a **Parser-Based
-Architecture** — which the data model replaced in 13.0.0. `CodexParser` survives
-only as an image extractor and a legacy fallback.
-
-This matters more than a normal stale doc, because this file is what the process
-rule at the top of this list points at: *"update the affected
-`documents/architecture/*.md`"* when work lands. Right now that instruction sends
-someone to a description of Squire.
-
-Do this **after A6 and 2a**, not before — the render restructure and the window
-decision rewrite most of what these documents describe, and rewriting them twice is
-the only way to waste the effort.
 
 ## Architecture decisions
 
@@ -509,7 +414,8 @@ Blacksmith's Notes API solved three problems Librarian solved separately, and
 solved them differently:
 
 - **visibility rewrites ownership**, including the pin's, rather than being derived
-  and re-synced (compare `updateCodexPinVisibility` and **M3**);
+  and re-synced (compare `updateCodexPinVisibility`, and the matching quest-side
+  warning added alongside it);
 - **the pin owns the icon**, so "the pin uses the icon I chose" is true by
   construction — Librarian keeps `system.categoryIcon` and re-derives the pin image
   on every update (`_codexCategoryToImage`);

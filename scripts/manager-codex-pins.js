@@ -737,9 +737,13 @@ function _registerContextMenuItems(pins) {
 }
 
 /**
- * Open the codex panel (tray expanded, codex tab) and scroll to / highlight an
- * entry. Shared by the codex pin doubleClick handler and the menubar notification
- * click handlers in manager-notifications.js.
+ * Reveal a codex entry in the browser: open the window if it is closed, expand the
+ * entry's category and card, scroll to it and flash it.
+ *
+ * Its only caller is the codex pin's doubleClick handler. It used to be shared with
+ * menubar notification click handlers in Squire's `manager-notifications.js`, which
+ * was not ported — see architecture-codex.md.
+ *
  * @param {string} codexUuid - The codex journal page UUID
  */
 export async function focusCodexInPanel(codexUuid) {

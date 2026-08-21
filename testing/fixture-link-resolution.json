@@ -1,0 +1,40 @@
+[
+  {
+    "name": "FIXTURE Known Good Actor",
+    "category": "Characters",
+    "summary": "Control case A. Rename this entry to the exact name of an Actor that exists in the world or in a mapped compendium before importing. Its self-link MUST resolve.",
+    "links": [],
+    "related": [],
+    "tags": ["fixture"],
+    "expandedDetails": null
+  },
+  {
+    "name": "FIXTURE Guaranteed Miss Zzzqx",
+    "category": "Characters",
+    "summary": "Control case B. Nothing by this name exists anywhere. Its self-link MUST NOT resolve, and because a self-link is speculative the miss MUST NOT be counted in the GM-facing 'did not resolve' number.",
+    "links": [],
+    "related": [],
+    "tags": ["fixture"],
+    "expandedDetails": null
+  },
+  {
+    "name": "FIXTURE Asserted Miss",
+    "category": "Locations",
+    "summary": "Control case C. An EXPLICIT link to something that does not exist. Unlike case B this is an assertion the author made, so it MUST be counted in the 'did not resolve' number, MUST be retained on the page with its name and type intact, and MUST render as plain text rather than vanishing.",
+    "links": [
+      { "name": "Zzzqx Nonexistent Blade", "type": "item" }
+    ],
+    "related": [],
+    "tags": ["fixture"],
+    "expandedDetails": null
+  },
+  {
+    "name": "FIXTURE Related Resolves",
+    "category": "Locations",
+    "summary": "Control case D. 'FIXTURE Known Good Actor' is another entry in this same import, so it MUST render as a link on the card, on the journal page view, and in the editor preview. 'FIXTURE Absent Entry' does not exist and MUST render as quiet plain text on all three — not as an error, and not dropped.",
+    "links": [],
+    "related": ["FIXTURE Known Good Actor", "FIXTURE Absent Entry"],
+    "tags": ["fixture"],
+    "expandedDetails": null
+  }
+]

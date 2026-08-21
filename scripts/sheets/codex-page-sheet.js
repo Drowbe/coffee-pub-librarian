@@ -1,6 +1,7 @@
 import { MODULE } from '../const.js';
 import { renderTemplate, getTextEditor, escapeHtml } from '../helpers.js';
 import { codexLinkKey, normalizeCodexLink } from '../utility-resolver.js';
+import { buildCodexPageIndex, renderCodexRef } from '../utility-codex-index.js';
 
 // The CONCRETE text page sheet. (JournalEntryPageTextSheet is abstract and defines
 // NO parts — extending it renders neither the view content nor the lore editor.)
@@ -39,6 +40,7 @@ export class CodexPageSheet extends JournalEntryPageProseMirrorSheet {
             context.document = this.document;
             context.system = this.document.system;
             context.tagsString = (this.document.system.tags || []).join(', ');
+            context.relatedString = (this.document.system.related || []).join(', ');
             context.linkChips = this.document.system.linkList;
         }
         return context;
@@ -125,6 +127,16 @@ export class CodexPageSheet extends JournalEntryPageProseMirrorSheet {
                 }
             }
 
+            // Related entries resolve against the pages of this page's own journal,
+            // through the same index and the same markup the browser card uses — so a
+            // name renders identically in both places and the two cannot drift.
+            // Unresolved names render as plain text, which is correct rather than an
+            // error: the entry may simply not exist yet.
+            const pageIndex = buildCodexPageIndex(this.document.parent);
+            const relatedHtml = (system.related || [])
+                .map(name => renderCodexRef(name, pageIndex))
+                .filter(Boolean);
+
             const fieldsHtml = await renderTemplate(
                 `modules/${MODULE.ID}/templates/page-codex-fields-view.hbs`,
                 {
@@ -132,7 +144,8 @@ export class CodexPageSheet extends JournalEntryPageProseMirrorSheet {
                     system,
                     isGM: game.user.isGM,
                     discoveredByString: (system.discoveredBy || []).join(', '),
-                    linksHtml
+                    linksHtml,
+                    relatedHtml
                 }
             );
 
@@ -144,14 +157,16 @@ export class CodexPageSheet extends JournalEntryPageProseMirrorSheet {
     _prepareSubmitData(event, form, formData, updateData) {
         const data = super._prepareSubmitData(event, form, formData, updateData);
 
-        // Tags arrive from the form as a comma-separated string
-        const rawTags = foundry.utils.getProperty(data, 'system.tags');
-        if (typeof rawTags === 'string') {
-            foundry.utils.setProperty(
-                data,
-                'system.tags',
-                rawTags.split(',').map(t => t.trim()).filter(Boolean)
-            );
+        // `<string-tags>` submits a comma-separated string in some Foundry builds and
+        // an array in others, so both `system.tags` and `system.related` are
+        // normalized the same way rather than trusting one shape.
+        for (const path of ['system.tags', 'system.related']) {
+            const raw = foundry.utils.getProperty(data, path);
+            if (typeof raw === 'string') {
+                foundry.utils.setProperty(data, path, raw.split(',').map(t => t.trim()).filter(Boolean));
+            } else if (Array.isArray(raw)) {
+                foundry.utils.setProperty(data, path, raw.map(t => String(t).trim()).filter(Boolean));
+            }
         }
 
         return data;

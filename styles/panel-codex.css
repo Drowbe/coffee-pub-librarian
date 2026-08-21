@@ -449,10 +449,37 @@
 }
 
 /* Multiple links on the codex page view */
-.librarian-codex-page-fields .codex-page-links {
+.librarian-codex-page-fields .codex-page-links,
+.librarian-codex-page-fields .codex-page-related {
     display: flex;
     flex-wrap: wrap;
     gap: 4px 10px;
+}
+
+/* Codex references on the JOURNAL PAGE view.
+   The .codex-ref markup is shared with the browser card (utility-codex-index.js),
+   but the card's rules are scoped to .librarian-panel-host, so the page needs its
+   own. Same colours deliberately: one visual language for the same thing in both
+   places. Colour literals here match their neighbours and are converted with the
+   rest of this file by TODO H5. */
+.librarian-codex-page-fields .codex-ref {
+    color: #e2551d;
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s;
+}
+
+.librarian-codex-page-fields .codex-ref:hover {
+    color: #ff7a3c;
+    text-decoration: underline;
+}
+
+/* A name with no entry yet. Quiet rather than an error state: the relationship is
+   real, the target simply does not exist yet, and it links itself when it does. */
+.librarian-codex-page-fields .codex-ref-unresolved {
+    opacity: 0.55;
+    font-style: italic;
+    cursor: default;
 }
 
 /* "Read More" pill below the summary — opens the journal page */

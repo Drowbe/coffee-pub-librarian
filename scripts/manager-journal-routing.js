@@ -28,10 +28,12 @@ let _hookIds = [];
  */
 function _routeTo(kind, page, options) {
     // The codex visibility toggle patches its icon in place and opts out of the
-    // full re-render, so the panel keeps scroll position and expanded entries.
-    // The option name is Squire's, kept because that is what the ported
-    // panel-codex.js still sends; renaming it means changing both halves at once.
-    if (kind === 'codex' && options?.squireSkipCodexRender) return;
+    // full re-render, so the panel keeps its scroll position and expanded entries.
+    //
+    // This is a private contract between panel-codex.js and this router — an update
+    // option Foundry passes through untouched. Both halves have to change in one
+    // commit or the toggle silently starts triggering full re-renders again.
+    if (kind === 'codex' && options?.librarianSkipCodexRender) return;
 
     const panel = getCampaignPanel(kind);
     if (!panel) return;

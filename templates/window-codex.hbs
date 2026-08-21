@@ -142,6 +142,33 @@
                 </div>
             </section>
 
+            {{!--
+                Related entries are other codex entries, referenced by NAME and
+                resolved at render — not documents, so this is a plain list rather
+                than the drop zone `links` uses next door. Naming an entry that does
+                not exist yet is valid: the relationship is kept and links itself
+                once that entry is created.
+            --}}
+            <section class="blacksmith-window-section">
+                <div class="blacksmith-window-section-header">
+                    <i class="fa-solid fa-diagram-project"></i>
+                    <span>Related Entries</span>
+                </div>
+                <div class="blacksmith-window-section-body">
+                    <div class="codex-form-field">
+                        <label for="related">Related codex entries (comma-separated)</label>
+                        <input type="text" id="related" name="related" value="{{relatedString}}"
+                               placeholder="Valjevo Castle, Black Fist, Mantor's Library">
+                        <small class="codex-form-hint">Names of other codex entries. A name with no entry yet is kept and links itself later. Do not repeat this entry's own location path.</small>
+                    </div>
+                    {{#if relatedHtml.length}}
+                        <div class="codex-related-preview">
+                            {{#each relatedHtml}}<span class="codex-related-preview-item">{{{this}}}</span>{{/each}}
+                        </div>
+                    {{/if}}
+                </div>
+            </section>
+
             <section class="blacksmith-window-section">
                 <div class="blacksmith-window-section-header">
                     <i class="fa-solid fa-tags"></i>

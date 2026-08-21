@@ -831,6 +831,60 @@ let _controller = null;
  * tags. Pins can be created without it, which is why its absence shows up as
  * unlabelled pins rather than an error.
  */
+/**
+ * Warn the GM when a quest or objective pin's visibility is edited in Configure Pin.
+ *
+ * Quest pin visibility is DERIVED, never configured — the same shape codex pins had
+ * before `_warnIfCodexPinVisibilityEdited` was added, confirmed by audit rather than
+ * assumed:
+ *
+ *  - the pin's `ownership` is what actually gates players, not
+ *    `config.blacksmithVisibility` (see `calculateQuestPinOwnership`), so flipping
+ *    the latter on a hidden quest shows them nothing;
+ *  - `syncQuestPinOwnership` re-derives both from the page's `visible` flag and the
+ *    objective's state, so the edit is silently reverted on the next sync.
+ *
+ * The edit is therefore a no-op that looks like it worked. Say so, rather than let a
+ * GM believe they revealed something to the party.
+ *
+ * Self-limiting: our own sync writes always patch visibility to the derived value,
+ * so they never trip the warning.
+ */
+async function _warnIfQuestPinVisibilityEdited(evt) {
+    try {
+        if (!game.user?.isGM) return;
+        // Only react when this update actually carried a visibility value.
+        const next = evt?.patch?.config?.blacksmithVisibility;
+        if (next !== 'visible' && next !== 'hidden') return;
+
+        const config = evt.pin?.config || {};
+        const questUuid = config.questUuid;
+        if (!questUuid) return;
+        const page = await fromUuid(questUuid);
+        if (!page) return;
+
+        const objectiveIndex = config.objectiveIndex;
+        const isObjective = Number.isFinite(objectiveIndex);
+        const questVisible = page.getFlag(MODULE.ID, 'visible') !== false;
+
+        // An objective pin also hides when its own state is hidden, which is parsed
+        // from the page rather than flagged. Without the parse we can still speak to
+        // the quest-level half, which is the common case and the one a GM is most
+        // likely to be fighting.
+        const derived = questVisible ? 'visible' : 'hidden';
+        if (!isObjective && next === derived) return;
+        if (isObjective && questVisible && next === 'visible') return;
+
+        ui.notifications.warn(
+            `${isObjective ? 'Objective' : 'Quest'} pin visibility follows the quest, not the pin — `
+            + `this change won't reach players and will be overwritten. `
+            + `Use the visibility toggle on "${page.name}" in the quest browser instead.`
+        );
+    } catch (error) {
+        console.warn(`${MODULE.TITLE} | _warnIfQuestPinVisibilityEdited:`, error);
+    }
+}
+
 export async function initQuestPins() {
     if (_initialised) return;
 
@@ -879,6 +933,12 @@ export async function initQuestPins() {
             || !!config.questUuid;
         if (!isQuestPin || !config.questUuid) return;
         await focusQuestInPanel(config.questUuid, config.objectiveIndex, config.questStatus);
+    }, { moduleId: MODULE.ID, signal });
+
+    // Warn when a quest or objective pin's visibility is edited directly.
+    pins.on?.('updated', (evt) => {
+        // Fire-and-forget: never let a diagnostic block anything.
+        _warnIfQuestPinVisibilityEdited(evt);
     }, { moduleId: MODULE.ID, signal });
 
     _initialised = true;

@@ -1219,8 +1219,22 @@ export class QuestPanel {
     }
 
     /**
-     * Apply quest status change. Persisted journal values use canonical strings:
-     * `Not Started`, `In Progress`, `Complete`, `Failed` (UI labels: Available, Active, Succeeded, Failed).
+     * Apply a quest status change.
+     *
+     * `normalizeQuestStatus` is the only definition, and it writes one of
+     * **Available / Active / Succeeded / Failed**. This comment used to claim the
+     * persisted vocabulary was `Not Started` / `In Progress` / `Complete` / `Failed`,
+     * a set nothing writes and nothing reads.
+     *
+     * **`Complete` is still live in real data**, though, which is why several sites
+     * test for it alongside `Succeeded` — see `_setObjectiveState` and
+     * `_importQuestsFromData`. Those are compatibility, not redundancy: pages written
+     * before the normalizer landed still carry it, confirmed against a production
+     * world. Do not simplify them away without migrating those pages first.
+     *
+     * TODO **A1** settles this properly by making status a schema field rather than a
+     * string parsed out of markup.
+     *
      * @param {string} uuid - Quest journal page UUID
      * @param {string} newStatus - New status value
      * @private

@@ -562,3 +562,29 @@
     max-width: 100%;
     height: auto;
 }
+
+/* ===== RELATED ENTRIES (Edit Entry window) =========================
+   A live preview under the comma-separated input, showing which names
+   currently resolve to a codex entry and which are still waiting on one.
+   The .codex-ref markup is shared with the browser card and the journal
+   page view (utility-codex-index.js); both of those scope their rules to
+   their own host, so the editor needs its own copy. Colour literals match
+   their neighbours and are converted with the rest by TODO H5. */
+
+.codex-entry-window .codex-related-preview {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+    margin-top: 6px;
+}
+
+.codex-entry-window .codex-related-preview .codex-ref {
+    color: #e2551d;
+    text-decoration: none;
+    cursor: default;
+}
+
+.codex-entry-window .codex-related-preview .codex-ref-unresolved {
+    opacity: 0.55;
+    font-style: italic;
+}

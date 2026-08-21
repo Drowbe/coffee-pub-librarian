@@ -8,30 +8,14 @@ const HTML_ESCAPES = Object.freeze({
   "'": '&#39;'
 });
 
-const tooltipTimeouts = new Map();
-
 /**
- * Create or get a shared quest tooltip element
- * @param {string} tooltipId - The ID for the tooltip element
- * @returns {HTMLElement} The tooltip element
- */
-export function getOrCreateQuestTooltip(tooltipId) {
-    let tooltip = document.getElementById(tooltipId);
-    if (!tooltip) {
-        tooltip = document.createElement('div');
-        tooltip.id = tooltipId;
-        tooltip.className = 'quest-tooltip-container';
-        document.body.appendChild(tooltip);
-    }
-    return tooltip;
-}
-
-/**
- * Shared helpers, carried over from Squire with the module identity swapped.
+ * Shared helpers.
  *
- * Only what Quests actually uses came across. Anything Squire keeps that
- * Librarian does not need was deliberately left behind rather than copied for
- * symmetry — a helper nobody calls is a maintenance cost with no reader.
+ * Everything here has a caller — verified, not assumed. The file arrived from
+ * Squire carrying a tooltip surface and a favourites accessor that nothing
+ * called and that referenced four identifiers the file never imported; they
+ * were removed rather than left to look like working code. A helper nobody
+ * calls is a maintenance cost with no reader, and a broken one is a trap.
  */
 
 export function getBlacksmith() {
@@ -45,8 +29,8 @@ export function getBlacksmithDialog() {
 }
 
 /**
- * Show routine Squire success/status feedback through Blacksmith's themed
- * toast surface rather than Foundry's core notification queue.
+ * Show routine success/status feedback through Blacksmith's themed toast
+ * surface rather than Foundry's core notification queue.
  */
 export function showLibrarianToast(title, options = {}) {
   const toast = getBlacksmith()?.toast;
@@ -69,9 +53,13 @@ export function showLibrarianToast(title, options = {}) {
 }
 
 /**
- * Adapt Squire's two remaining complex JSON-import surfaces to Blacksmith's
- * DialogV2 wait contract while their eventual importer replacement is blocked
- * on the public Blacksmith Importer API.
+ * Adapt Librarian's two remaining hand-rolled JSON-import dialogs to
+ * Blacksmith's DialogV2 wait contract.
+ *
+ * Both callers are scheduled for replacement: Blacksmith now ships
+ * `api.importer`, whose window supersedes these dialogs entirely (TODO **H6**).
+ * This function loses its last caller with them and should be deleted at the
+ * same time.
  */
 export async function showBlacksmithWait(config = {}, renderOptions = {}) {
   const buttons = Object.entries(config.buttons || {}).map(([action, button]) => ({
@@ -365,288 +353,6 @@ export function getCampaignContext() {
  */
 export function escapeHtml(text) {
   return String(text ?? '').replace(/[&<>"']/g, ch => HTML_ESCAPES[ch]);
-}
-
-/**
- * Show quest tooltip with consistent formatting and delay
- * @param {string} tooltipId - The ID for the tooltip element
- * @param {Object} data - Tooltip data object
- * @param {string} data.questName - Name of the quest
- * @param {number} data.objectiveIndex - Index of the objective (0-based)
- * @param {string} data.objectiveState - State of the objective (active, completed, failed, hidden)
- * @param {string} data.description - Description text for the objective
- * @param {string} data.controls - Controls text to display
- * @param {boolean} data.isGM - Whether the current user is a GM
- * @param {Object} event - Mouse event for positioning
- * @param {number} delay - Delay in milliseconds before showing tooltip (default: 500ms)
- */
-export async function showQuestTooltip(tooltipId, data, event, delay = 500, autoHide = 4000) {
-    try {
-        // Validate input parameters
-        if (!tooltipId || typeof tooltipId !== 'string') {
-            console.error('showQuestTooltip: Invalid tooltipId parameter', { tooltipId, data });
-            return;
-        }
-
-        if (!data || typeof data !== 'object') {
-            console.error('showQuestTooltip: Invalid data parameter', { tooltipId, data });
-            return;
-        }
-
-        if (!event) {
-            console.error('showQuestTooltip: Missing event parameter', { tooltipId, data });
-            return;
-        }
-
-        // Clear any existing timeout for this tooltip
-        if (tooltipTimeouts.has(tooltipId)) {
-            clearTrackedTimeout(tooltipTimeouts.get(tooltipId));
-            tooltipTimeouts.delete(tooltipId);
-        }
-        
-        // Set new timeout to show tooltip after delay
-        const timeoutId = trackModuleTimeout(async () => {
-            try {
-                const tooltip = getOrCreateQuestTooltip(tooltipId);
-                const template = TEMPLATES.TOOLTIP_QUEST;
-                // Render the tooltip using the Handlebars template
-                const html = await renderTemplate(template, data);
-                tooltip.innerHTML = html;
-                tooltip.style.display = 'block';
-                // Position tooltip near mouse with small offset
-                const mouse = event.data?.originalEvent || event;
-                if (mouse && typeof mouse.clientX === 'number' && typeof mouse.clientY === 'number') {
-                    tooltip.style.left = (mouse.clientX + 16) + 'px';
-                    tooltip.style.top = (mouse.clientY + 8) + 'px';
-                }
-                // Clear the timeout reference
-                tooltipTimeouts.delete(tooltipId);
-
-                if (autoHide > 0) {
-                    const hideId = trackModuleTimeout(() => {
-                        hideQuestTooltip(tooltipId);
-                    }, autoHide);
-                    tooltipTimeouts.set(`${tooltipId}-autohide`, hideId);
-                }
-            } catch (error) {
-                console.error('showQuestTooltip: Error in timeout callback', { tooltipId, error: error.message });
-            }
-        }, delay);
-        // Store the timeout reference
-        tooltipTimeouts.set(tooltipId, timeoutId);
-    } catch (error) {
-        console.error('showQuestTooltip: Unexpected error', { tooltipId, error: error.message });
-    }
-}
-
-/**
- * Hide quest tooltip
- * @param {string} tooltipId - The ID for the tooltip element
- */
-export function hideQuestTooltip(tooltipId) {
-    // Clear any pending timeout for this tooltip
-    if (tooltipTimeouts.has(tooltipId)) {
-        clearTrackedTimeout(tooltipTimeouts.get(tooltipId));
-        tooltipTimeouts.delete(tooltipId);
-    }
-    const autoKey = `${tooltipId}-autohide`;
-    if (tooltipTimeouts.has(autoKey)) {
-        clearTrackedTimeout(tooltipTimeouts.get(autoKey));
-        tooltipTimeouts.delete(autoKey);
-    }
-    
-    const tooltip = document.getElementById(tooltipId);
-    if (tooltip) {
-        tooltip.style.display = 'none';
-    }
-}
-
-/**
- * Get task text for a specific objective from quest data
- * @param {Object} questData - The quest data object
- * @param {number} objectiveIndex - The index of the objective (0-based)
- * @returns {string} The task text for the objective
- */
-export function getTaskText(questData, objectiveIndex) {
-    try {
-        if (!questData) return 'Objective';
-
-        // Parse the quest content to get tasks
-        let content = '';
-        if (typeof questData.text?.content === 'string') {
-            content = questData.text.content;
-        } else if (typeof questData.text === 'string') {
-            content = questData.text;
-        }
-
-        if (!content) return 'Objective';
-
-        // Parse tasks from the content
-        const tasksMatch = content.match(/<strong>Tasks:<\/strong><\/p>\s*<ul>([\s\S]*?)<\/ul>/);
-        if (tasksMatch) {
-            const tasksHtml = tasksMatch[1];
-            const parser = new DOMParser();
-            const ulDoc = parser.parseFromString(`<ul>${tasksHtml}</ul>`, 'text/html');
-            const ul = ulDoc.querySelector('ul');
-            if (ul) {
-                const liList = Array.from(ul.children);
-                const li = liList[objectiveIndex];
-                if (li) {
-                    // Get the text content, removing any HTML tags
-                    let rawText = li.textContent.trim();
-                    // Clean the text to remove GM notes and treasure links
-                    return cleanTaskText(rawText);
-                }
-            }
-        }
-
-        return 'Objective';
-    } catch (error) {
-        console.error('Error getting task text:', error);
-        return 'Objective';
-    }
-}
-
-/**
- * Async helper to fetch quest and objective data for tooltips
- * @param {string} questPageUuid - The quest UUID
- * @param {number} objectiveIndex - The objective index (0-based)
- * @returns {Promise<Object|null>} Tooltip data or null if not found
- */
-export async function getObjectiveTooltipData(questPageUuid, objectiveIndex, pinQuestState = null, pinObjectiveState = null) {
-    try {
-        // Find the journal page by UUID
-        let page = null;
-        for (const journal of game.journal.contents) {
-            page = journal.pages.find(p => p.uuid === questPageUuid);
-            if (page) break;
-        }
-        if (!page) {
-            console.error('SQUIRE | QUESTS getObjectiveTooltipData: Journal page not found', { questPageUuid, objectiveIndex });
-            return null;
-        }
-
-        // Enrich the page HTML if needed
-        const TextEditor = getTextEditor();
-        const enrichedHtml = await TextEditor.enrichHTML(page.text.content, { async: true });
-        // Parse the quest entry using the source of truth
-        const entry = await QuestParser.parseSinglePage(page, enrichedHtml);
-        if (!entry) {
-            console.error('SQUIRE | QUESTS getObjectiveTooltipData: Failed to parse quest entry', { questPageUuid, objectiveIndex });
-            return null;
-        }
-
-        // Get the relevant objective/task
-        const task = entry.tasks[objectiveIndex];
-        if (!task) {
-            console.error('SQUIRE | QUESTS getObjectiveTooltipData: Objective not found', { questPageUuid, objectiveIndex });
-            return null;
-        }
-
-        let visibility;
-        if (game.user.isGM) {
-            // Use pin's actual states if provided, otherwise fall back to parsed entry/task states
-            const actualQuestState = pinQuestState || entry.state;
-            const actualObjectiveState = pinObjectiveState || task.state;
-            
-            // Check quest-level visibility first
-            if (actualQuestState === 'hidden') {
-                visibility = 'Visible to GM';
-            } else if (actualObjectiveState === 'hidden') {
-                visibility = 'Visible to GM';
-            } else {
-                visibility = 'Visible to All';
-            }
-        }
-        
-        // For non-GM users, if the objective is hidden, show placeholder text
-        let questName = entry.name;
-        let description = task.text || 'Objective';
-        
-        if (!game.user.isGM && task.state === 'hidden') {
-            questName = 'Objective Not Discovered';
-            description = 'You have not uncovered this quest objective yet.';
-        }
-        
-        // Check if there's a pin nearby for hidden objectives
-        let objectiveNearby = false;
-        if (task.state === 'hidden') {
-            // MIGRATED TO BLACKSMITH API: Check if objective pin exists via Blacksmith API
-            const pins = game.modules.get('coffee-pub-blacksmith')?.api?.pins;
-            if (pins?.isAvailable()) {
-                const allPins = pins.list({ moduleId: MODULE.ID, sceneId: canvas.scene?.id });
-                objectiveNearby = allPins.some(pin => 
-                    pin.config?.questUuid === questPageUuid && 
-                    pin.config?.objectiveIndex === objectiveIndex
-                );
-            }
-        }
-        
-        return {
-            questName,
-            questNumber: getQuestNumber(page.uuid),
-            objectiveIndex,
-            objectiveNumber: objectiveIndex + 1,
-            objectiveNumberPadded: String(objectiveIndex + 1).padStart(2, '0'),
-            objectiveState: pinObjectiveState || task.state || 'active',
-            description,
-            gmHint: (game.user.isGM && task.gmHint) ? task.gmHint : undefined,
-            visibility,
-            isGM: game.user.isGM,
-            objectiveNearby
-        };
-    } catch (error) {
-        console.error('SQUIRE | QUESTS getObjectiveTooltipData: Unexpected error', { questPageUuid, objectiveIndex, error: error.message });
-        return null;
-    }
-}
-
-/**
- * How many favorites the tray handle may show at once.
- *
- * Lives here rather than on FavoritesPanel so the Handlebars helper can read it
- * without helpers.js importing a panel — panels already import helpers, and the
- * cycle would be gratuitous. FavoritesPanel delegates here.
- */
-export function getHandleFavoriteLimit() {
-    try {
-        const limit = Number(game.settings.get(MODULE.ID, 'handleFavoritesMax'));
-        if (Number.isFinite(limit) && limit > 0) return Math.floor(limit);
-    } catch (error) {
-        // Settings not registered yet — fall back to the default.
-    }
-    return 5;
-}
-
-// Helper function to get quest number from UUID
-function getQuestNumber(questUuid) {
-    let hash = 0;
-    for (let i = 0; i < questUuid.length; i++) {
-        hash = ((hash << 5) - hash) + questUuid.charCodeAt(i);
-        hash = hash & hash;
-    }
-    return Math.abs(hash) % 100 + 1;
-}
-
-
-/**
- * Clean task text by removing GM notes and treasure links
- * @param {string} text - The raw task text
- * @returns {string} The cleaned task text
- */
-export function cleanTaskText(text) {
-    if (!text) return text;
-    
-    // Remove GM notes between || || (including the pipes)
-    text = text.replace(/\|\|[^|]*\|\|/g, '');
-    
-    // Remove treasure links between (( )) (including the parentheses)
-    text = text.replace(/\(\([^)]*\)\)/g, '');
-    
-    // Clean up extra whitespace
-    text = text.replace(/\s+/g, ' ').trim();
-    
-    return text;
 }
 
 /**

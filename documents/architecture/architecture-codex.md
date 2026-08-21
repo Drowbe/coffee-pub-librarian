@@ -294,7 +294,45 @@ The form template provides:
 - **Deduplication**: On import, existing pages are matched by `page.getFlag(MODULE.ID, 'codexUuid') === entry.uuid`; matching entries are updated, others created.
 
 ### Export
-- **JSON export**: Converts all entries (from `_refreshData()`-style parsing) to JSON array; copy to clipboard or download file (e.g. `COFFEEPUB-SQUIRE-codex-export-{timestamp}.json`).
+- **JSON export**: Refreshes, converts all entries to a JSON array, and hands them to `DataExportWindow` for clipboard or download (`COFFEEPUB-LIBRARIAN-codex-export-{timestamp}.json`).
+- **It refuses to write a partial.** See below — this is the load-bearing part.
+
+### Export completeness, and the subtype hazard
+
+**Owning a document subtype makes every export path a data-safety question.** This is
+the one non-obvious cost of `coffee-pub-librarian.codex` being a declared subtype
+rather than a view over plain text pages, and it is permanent — it is not a
+migration artefact.
+
+Foundry refuses a page whose `type` names a module that is disabled or absent. So
+with Librarian disabled, codex pages do not load, and **anything reading the journal
+sees a short list and reports success**: a world export, Foundry's own journal
+export, a compendium export. The file looks complete. Nobody finds out until a
+restore.
+
+Librarian's own export cannot hit that case — the codex panel cannot open while the
+module is disabled — but three *other* silent-partial paths existed and are now
+closed:
+
+| Path | Was |
+|---|---|
+| Export ran off the last-rendered `this.data` | A page added since was absent from the file |
+| A page whose content would not read was caught and ignored | Exported as though it simply had no Expanded Details |
+| `_refreshData` skips a codex page that throws while parsing | Dropped from the file, console line only |
+
+`_openExportCodexDialog` now refreshes first, counts what it gathered against the
+`CODEX_PAGE_TYPE` pages actually in the journal, records unreadable pages by name,
+and **refuses on any mismatch**. The export summary reports `N of N` rather than
+`N`, so the check is visible on success rather than only firing on failure.
+
+Two rules follow, and neither is optional:
+
+- **Never back up the codex with Librarian disabled.** Enable it, confirm the
+  browser lists your entries, then back up.
+- **Any future export path must carry the same guard.** If the import half ever
+  moves to Blacksmith's `api.importer`, the completeness check stays here —
+  Blacksmith has no answer for this failure mode and has the open question filed
+  under *"Import/export and module-owned document subtypes"*.
 
 ### Auto-Discover from Party Inventories
 - Button in panel: scans all player-owned character tokens on the canvas, collects inventory item UUIDs and names, then for each codex entry checks if any party member has that item; updates entry “discoverers” and progress. Uses global progress bar; notifies when no party tokens or no inventory items found.

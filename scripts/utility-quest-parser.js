@@ -1,7 +1,6 @@
 import { MODULE } from './const.js';
 
 export const QUEST_CATEGORIES = Object.freeze(['Main Quest', 'Side Quest']);
-export const QUEST_STATUSES = Object.freeze(['Available', 'Active', 'Succeeded', 'Failed']);
 
 export function normalizeQuestCategory(category) {
     return String(category || '').trim() === 'Main Quest' ? 'Main Quest' : 'Side Quest';
@@ -362,64 +361,4 @@ export class QuestParser {
         entry.status = normalizeQuestStatus(entry.status);
         return entry;
     }
-}
-
-/**
- * User-facing label for quest status (tray tabs, menus, forms).
- * Legacy and current status values are normalized to Available, Active, or Complete.
- * @param {string} [status]
- * @returns {string}
- */
-export function getQuestStatusDisplayLabel(status) {
-    return normalizeQuestStatus(status);
-}
-
-/**
- * Rewrite the configured quest journal to the current Main/Side category and
- * Available/Active/Succeeded/Failed status model. Safe to run repeatedly.
- */
-export async function migrateQuestJournalData(journal = null) {
-    if (!game.user?.isGM) throw new Error('Quest journal migration requires a GM.');
-    if (!journal) {
-        const journalId = game.settings.get(MODULE.ID, 'questJournal');
-        journal = journalId && journalId !== 'none' ? game.journal.get(journalId) : null;
-    }
-    if (!journal) throw new Error('No configured quest journal was found.');
-
-    let updated = 0;
-    let unchanged = 0;
-    for (const page of journal.pages.contents) {
-        const source = String(page.text?.content || '');
-        if (!/<strong>\s*(Category|Status)\s*:/i.test(source)) {
-            unchanged++;
-            continue;
-        }
-
-        const categoryMatch = source.match(/<strong>Category:<\/strong>\s*([^<]*)/i);
-        const statusMatch = source.match(/<strong>Status:<\/strong>\s*([^<]*)/i);
-        const originalCategory = page.getFlag?.(MODULE.ID, 'originalCategory');
-        const category = normalizeQuestCategory(originalCategory || categoryMatch?.[1]);
-        const status = normalizeQuestStatus(statusMatch?.[1]);
-        let content = source;
-
-        if (categoryMatch) {
-            content = content.replace(/(<strong>Category:<\/strong>\s*)[^<]*/i, `$1${category}`);
-        }
-        if (statusMatch) {
-            content = content.replace(/(<strong>Status:<\/strong>\s*)[^<]*/i, `$1${status}`);
-        }
-        content = content.replace(/<p><strong>Outcome:<\/strong>\s*[^<]*<\/p>\s*/ig, '');
-
-        if (content !== source) {
-            await page.update({ text: { content } });
-            updated++;
-        } else {
-            unchanged++;
-        }
-        await page.unsetFlag?.(MODULE.ID, 'originalCategory');
-        await page.unsetFlag?.(MODULE.ID, 'questOutcome');
-    }
-
-    await game.settings.set(MODULE.ID, 'questCategories', [...QUEST_CATEGORIES]);
-    return { journalId: journal.id, journalName: journal.name, updated, unchanged };
 }

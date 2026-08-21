@@ -1808,6 +1808,27 @@ export class CodexPanel {
      * @private
      */
     async _openExportCodexDialog() {
+        // Refresh first. Exporting from whatever `this.data` happened to hold means
+        // a page created or edited since the last render is silently absent from the
+        // file. The quest export has always done this; the codex one did not.
+        await this._refreshData();
+
+        if (!this.selectedJournal) {
+            ui.notifications.error('No codex journal selected. Nothing to export.');
+            return;
+        }
+
+        // What the journal says SHOULD be in the file. Legacy text pages are
+        // deliberately not counted — they are not codex entries and re-import is
+        // their conversion path.
+        const expectedCount = this.selectedJournal.pages.contents
+            .filter(p => p.type === CODEX_PAGE_TYPE).length;
+
+        // Pages whose content could not be read. Previously swallowed, which made a
+        // page we failed to open indistinguishable from one that genuinely has no
+        // Expanded Details — the export succeeded and quietly dropped the lore.
+        const unreadable = [];
+
         const exportData = [];
         for (const cat of this.categories) {
             for (const entry of (this.data[cat] || [])) {
@@ -1821,10 +1842,16 @@ export class CodexPanel {
                 let expandedDetails = null;
                 try {
                     const page = await fromUuid(entry.uuid);
+                    if (!page) throw new Error('page did not resolve');
                     const raw = typeof page?.text?.content === 'string' ? page.text.content : '';
                     if (raw.trim()) expandedDetails = raw;
                     img = (typeof page?.system?.img === 'string' && page.system.img) ? page.system.img : null;
-                } catch (_) { /* page unavailable — export without expanded details */ }
+                } catch (error) {
+                    // Recorded, not swallowed. The export is refused below rather than
+                    // shipping this entry stripped of its lore under a success message.
+                    unreadable.push(entry.name || entry.uuid);
+                    console.error(`${MODULE.TITLE} | Codex export could not read "${entry.name}":`, error);
+                }
                 if (img) {
                     const origin = window.location.origin + '/';
                     if (img.startsWith(origin)) img = img.slice(origin.length);
@@ -1858,6 +1885,34 @@ export class CodexPanel {
                 });
             }
         }
+        // Refuse a partial rather than write one.
+        //
+        // An export is a backup, and the dangerous failure is not an error — it is a
+        // file that looks complete and is not, discovered only when someone tries to
+        // restore it. Three ways that happened here: `_refreshData` skips (and logs)
+        // a page that throws while parsing, a page whose content will not read used
+        // to export as if it simply had no lore, and the whole thing used to run off
+        // stale data.
+        //
+        // The scenario Blacksmith flagged — a subtype page refused at world load
+        // while Librarian is disabled — cannot be caught from here, because this
+        // panel cannot open in that state. It is covered in the migration runbook
+        // instead: never take a codex backup with Librarian disabled.
+        if (unreadable.length || exportData.length !== expectedCount) {
+            const reasons = [];
+            if (exportData.length !== expectedCount) {
+                reasons.push(`the journal holds ${expectedCount} codex ${expectedCount === 1 ? 'page' : 'pages'} but only ${exportData.length} could be gathered`);
+            }
+            if (unreadable.length) {
+                reasons.push(`${unreadable.length} could not be read (${unreadable.slice(0, 5).join(', ')}${unreadable.length > 5 ? ', …' : ''})`);
+            }
+            ui.notifications.error(
+                `Codex export refused: ${reasons.join('; ')}. `
+                + `A partial export that reports success is worse than no export. See the console for the failures.`
+            );
+            return;
+        }
+
         const jsonString = JSON.stringify(exportData, null, 2);
         const sanitizeWindowsFilename = name => name
             .replace(/[<>:"/\\|?*\u0000-\u001F]/g, '_')
@@ -1871,7 +1926,9 @@ export class CodexPanel {
             data: jsonString,
             filename: sanitizeWindowsFilename(`COFFEEPUB-LIBRARIAN-codex-export-${stamp}.json`),
             summary: [
-                { label: 'Total Exported', value: `${exportData.length} codex entries` },
+                // Both numbers, deliberately: "312 of 312" is checkable at a glance in
+                // a way that "312 entries" is not.
+                { label: 'Total Exported', value: `${exportData.length} of ${expectedCount} codex entries` },
                 { label: 'Format', value: 'Codex export v1.0' },
                 { label: 'Created', value: new Date().toLocaleString() }
             ]

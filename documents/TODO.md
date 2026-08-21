@@ -4,13 +4,16 @@ Open work for Coffee Pub Librarian, ordered by severity.
 
 ## How this file works
 
-- **One item, one ID.** IDs are stable — reference them in commits and PRs.
+- **One item, one ID.** IDs are stable and are never reused — reference them in
+  commits and PRs.
 - **Nothing is finished until the docs are.** When an item lands, update the
   affected `documents/architecture/*.md`, the relevant Blacksmith API notes, and
-  `CHANGELOG.md` in the same commit.
-- **Completed items are deleted from this file**, not ticked — once the work is
-  logged in the architecture doc and the changelog, this file has no reason to
-  carry it. If it isn't logged, it isn't done.
+  `CHANGELOG.md` in the same commit. If it isn't logged, it isn't done.
+- **The tables track; the body explains.** When an item closes, its row moves to
+  [Closed](#closed) with a pointer to where the work is recorded, and **its body
+  section is deleted**. The context that section carried — the reasoning, the file
+  references, the failure modes — has by then been written into the architecture
+  doc and the changelog, so keeping a second copy here only lets the two drift.
 - **Implemented plans are deleted.** A plan in `documents/plans/` lives only until
   every phase has shipped and been recorded elsewhere.
 - **Severity is about the user, not the effort.** Critical means broken in shipped
@@ -41,19 +44,18 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **M1** | Medium | Codex | Tag filter permanently expands every category | S |
 | **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
 | **M3** | Medium | Quests | **AUDIT** — quest pin visibility may share the codex pin no-op | M |
-| **M4** | Medium | Cleanup | Six dead exports in `helpers.js` reference four undefined identifiers | S |
-| **M5** | Medium | Cleanup | Three dead exports in `utility-quest-parser.js` | S |
 | **M6** | Medium | Codex | New entries from the editor window set no ownership; import does | S |
-| **M7** | Medium | Quests | `getQuestStatusDisplayLabel` doc says "Complete", returns "Succeeded" | S |
+| **M7** | Medium | Quests | Three quest-status vocabularies; `Complete` still load-bearing on two paths | S |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **M9** | Medium | Naming | `squireSkipCodexRender` outlived its module | S |
-| **M11** | Medium | Data safety | A codex export taken while Librarian is disabled silently omits everything | S |
 | **L1** | Low | v14 | Bare `FilePicker` and `saveDataToFile` globals | S |
 | **L3** | Low | Docs | Doc paths drifted after the `documents/` reorganisation | S |
 | **L4** | Low | Docs | CHANGELOG 13.0.0 omits Auto-Link, `related`, and retain-unresolved links | S |
 | **L5** | Low | Testing | No link-resolution test fixture | S |
 | **L6** | Low | Debt | `utility-base-parser.js` / `utility-journal.js` duplicated with Squire | — |
 | **L7** | Low | Menubar | Decide whether Librarian's menubar tools declare `supersedes` | S |
+| **L8** | Low | Quests | Objective pin tooltip: assets exist, nothing renders them | S |
+| **L9** | Low | Docs | Both architecture docs still describe Squire's tray and five files that don't exist | M |
 | **A1** | Decision | Architecture | Quests are still HTML-parsed; codex is not | L |
 | **A2** | Decision | Architecture | Journal routing bypasses Blacksmith's HookManager | S |
 | **A3** | Decision | Architecture **[EXT]** | No Blacksmith API covers a panel-style entity browser | — |
@@ -61,31 +63,59 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **A5** | Decision | Suite | `coffee-pub-scribe` exists and is under-developed | — |
 | **A6** | Decision | Windows | Codex → Tool window; Quests → standard, master-detail. Zero Tool windows today | M |
 | **A7** | Decision | Migration | Macros vs Blacksmith's settings-adoption table | M |
+| **A8** | Decision | Migration | Retire the migration runbook and both macros — awaiting confirmation | S |
 
-In flight: [the Squire → Librarian migration](#in-flight--squire--librarian-migration).
+Migration: [complete](#done--squire--librarian-migration).
 Not scheduled: [backlog](#backlog--quest-enhancements).
+
+## Closed
+
+Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
+`[Unreleased]`; the body sections these rows had are deleted, not archived.
+
+| ID | Was | Recorded as |
+|---|---|---|
+| **C1** | Window registry opener called a function that no longer existed | *The Blacksmith window registry could not open either browser* |
+| **C2** | `prompt-codex.txt` never shipped; Copy Template copied its own error string | *Copy Template in the codex importer copied an error message* |
+| **C3** | Squire named in three user-facing strings | *Squire named in three user-facing places* |
+| **H1** | 17 Handlebars helpers, 5 shadowing Blacksmith's globals, 1 in use | *Handlebars helper registration reduced from seventeen helpers to one* |
+| **H3** | Tag taxonomy addressed to Squire | Blacksmith shipped the three `coffee-pub-librarian.*` contexts; outcome folded into **H2** |
+| **H4** | `getPartyActors()` reinvented the roster fallback | *The party roster comes from Blacksmith's Party API* |
+| **L2** | Resolver header cited a doc that never existed | *`utility-resolver.js` no longer cites `documents/architecture-squire.md`* |
+| **M4** | Six dead exports in `helpers.js` referencing four undefined identifiers | *Nine dead exports that could not have worked* |
+| **M5** | Three dead exports in `utility-quest-parser.js` | *(same entry)* |
+| **M10** | Three multi-instance windows sharing one saved position key | *Codex, quest and export windows fought over one saved position* |
+| **M11** | Codex export could write a silent partial and report success | *The codex export refuses to write a partial file* |
+
+Two changes in `[Unreleased]` were never tracked items and have no row: the
+**Blacksmith minimum bump** to 13.19.0, which came out of the deployment
+discussion, and the **move of the export/subtype hazard** into
+`architecture/architecture-codex.md`.
 
 ---
 
-## In flight — Squire → Librarian migration
+## Done — Squire → Librarian migration
 
-Codex code is in; what remains is the live pass. **The procedure is
-[`documents/migration-runbook.md`](migration-runbook.md)** — it is the single
-source and is not restated here.
+**Complete. Nothing to run.** Both worlds that ever held Squire-era codex data —
+dev and production — have migrated; production has been running codex on
+Librarian's subtype through everything above. Neither module was released, so no
+third world exists.
 
-- [ ] Run the runbook end to end on production.
+`migration-runbook.md` can no longer be followed even if one did: it requires
+Squire to still declare `coffee-pub-squire.codex`, and Squire is at **13.8.1**
+with `documentTypes` and all codex/quest code removed. Retiring the runbook and
+both macros is **A8**, awaiting confirmation.
 
-Two things about it that outlive the run:
+What replaces it is a deployment checklist, not a migration:
 
-- **It is per world.** Any other world still has quests and codex pages addressed
-  to `coffee-pub-squire`, and must run the macros **before** that world updates
-  Squire past the release that drops them.
-- **Step 5 — verify with Squire disabled — is the load-bearing one.** Handlebars
-  helpers, partials and CSS class names are world-global, so while both modules
-  run Librarian can be silently borrowing Squire's. That is not hypothetical: it
-  is how the missing `registerHelpers` and the unstyled import/export dialog were
-  found. Librarian no longer re-registers Blacksmith's global helpers, so this step
-  is now checking that the dependency on Blacksmith's set actually holds.
+- [ ] Confirm production is on **Blacksmith 13.19.0** before pushing Librarian —
+      the manifest minimum was raised to match what the code now uses.
+- [ ] Smoke-test what changed: open both browsers through the menubar **and** via
+      `blacksmith.openWindow('coffee-pub-librarian-quest-browser')` (the registry
+      path nothing exercised before); Export Codex reports `N of N`; Copy Template
+      yields the prompt rather than an error string; Auto-Discover runs; the quest
+      list renders (`quest-entry.hbs` is the only template using the `default`
+      helper, so a helper problem shows there first).
 
 ---
 
@@ -179,8 +209,11 @@ Three notes for whoever picks this up:
   holding it off the wiki (`wiki-sync.mjs:105`) even though it now documents a
   shipped API; they have a TODO filed for the ordering. Do not go looking for it
   online.
-- **Export is not in scope** and nothing is planned — see **M11**. Our export stays
-  ours for now; do not wait for a counterpart.
+- **Export is not in scope** and nothing is planned. Our export stays ours; do not
+  wait for a counterpart, and **keep its completeness guard** when the import half
+  moves — it compares what it gathered against the journal's codex page count and
+  refuses a partial, which is the failure mode Blacksmith flagged and has no answer
+  for yet.
 
 Once this lands, `showBlacksmithWait` in [`helpers.js`](../scripts/helpers.js) loses
 its only two callers and should go with it, along with its stale header comment
@@ -309,32 +342,6 @@ derives from quest/objective state. Codex has the warning
 See **A4** — `api-notes.md` documents Blacksmith's own answer to this exact
 problem, and it may make the warning unnecessary rather than needing a second copy.
 
-### M4 — Dead exports in `helpers.js` with broken references
-
-Six exports are called by nothing in the module:
-`getOrCreateQuestTooltip` (:18), `showQuestTooltip` (:357), `hideQuestTooltip`
-(:420), `getTaskText` (:444), `getObjectiveTooltipData` (:490),
-`getHandleFavoriteLimit` (:585).
-
-They are not merely unused — they reference four identifiers the file never
-imports (`TEMPLATES`, `QuestParser`, `trackModuleTimeout`, `clearTrackedTimeout`),
-plus `TEMPLATES.TOOLTIP_QUEST` which is not a key in `const.js`, and a
-`handleFavoritesMax` setting Librarian never registers. Two also log with a
-`SQUIRE |` prefix.
-
-Harmless while unused; a `ReferenceError` the moment anyone wires one up. Delete
-them, or restore them properly if the objective tooltip is meant to come back —
-`TEMPLATES.TOOLTIP_PIN_QUEST_OBJECTIVE` and
-`templates/tooltip-pin-quests-objective.hbs` both exist and are otherwise unused,
-which suggests it was mid-port.
-
-### M5 — Dead exports in `utility-quest-parser.js`
-
-`QUEST_STATUSES`, `getQuestStatusDisplayLabel` and `migrateQuestJournalData` are
-exported and referenced nowhere. `migrateQuestJournalData` performs bulk journal
-writes and requires a GM — dead code that rewrites documents is worth removing
-deliberately rather than leaving reachable from the console.
-
 ### M6 — New codex entries set no ownership
 
 The import path explicitly creates pages with
@@ -347,17 +354,27 @@ entirely and inherits the journal default.
 Two ways to create an entry, two different starting visibilities. Pick one — almost
 certainly hidden — and apply it in both.
 
-### M7 — Status label contract disagrees with itself
+### M7 — Three quest-status vocabularies, none authoritative
 
-`getQuestStatusDisplayLabel` is documented as returning *"Available, Active, or
-Complete"* but delegates to `normalizeQuestStatus`, which returns `Succeeded`.
-`_applyQuestStatus` documents persisted values as *"`Not Started`, `In Progress`,
-`Complete`, `Failed`"*, which is a third vocabulary and matches neither the
-canonical set (`QUEST_STATUSES`) nor what the parser writes.
+`normalizeQuestStatus` is now the only definition, and it emits **Available /
+Active / Succeeded / Failed**. Two other vocabularies still contradict it in
+`panel-quest.js`:
 
-`_setObjectiveState` hedges with `['Complete', 'Succeeded'].includes(currentStatus)`,
-which is the smell. Settle on one vocabulary and fix the comments; **A1** would
-settle it structurally.
+- `_applyQuestStatus` documents persisted values as *"`Not Started`, `In Progress`,
+  `Complete`, `Failed` (UI labels: Available, Active, Succeeded, Failed)"* — a set
+  nothing writes and nothing reads.
+- `_setObjectiveState` hedges with `['Complete', 'Succeeded'].includes(currentStatus)`
+  and `_importQuestsFromData` tests `quest.status === 'Complete'`, so `Complete`
+  is still load-bearing on the import and objective paths even though the
+  normalizer never produces it.
+
+The hedges are the smell: they exist because nobody could say which value a page
+actually holds. Establish that first — a page written before the normalizer landed
+may genuinely hold `Complete` — then either migrate those pages or keep the
+compatibility test with a comment saying why. Do not simply delete the hedge.
+
+The stale doc comment is free to fix now. **A1** settles the rest structurally, by
+making status a schema field rather than a string parsed out of markup.
 
 ### M8 — Adopt `api.entityList` for participant selection
 
@@ -376,33 +393,6 @@ An update-option name that outlived its module. `panel-codex.js` sends it
 ([:34](../scripts/manager-journal-routing.js#L34)). Renaming means changing both
 halves in one commit — small, but it must be atomic or the codex visibility toggle
 starts triggering full re-renders again.
-
-### M11 — Export is unsafe while Librarian is disabled
-
-Raised by Blacksmith while declining export from the Importer API scope, and it
-lands squarely on us because **we are the module that declares a page subtype.**
-
-With the owning module disabled, Foundry refuses subtype pages at world load. So an
-export taken in that state **silently omits every codex page and reports success** —
-the worst shape a backup failure can take, because it looks like it worked and is
-only discovered when someone tries to restore it.
-
-Not live in our own export path: `_openExportCodexDialog` runs from the codex panel,
-which cannot open unless Librarian is enabled. The exposure is everything else — a
-world backup, Foundry's own journal export, a compendium export, or any general
-exporter that ships later. Blacksmith's open question lives in their `TODO.md` under
-*"Import/export and module-owned document subtypes"*; nothing is planned, so this is
-ours to guard rather than to wait on.
-
-Two things to do:
-
-- **Make our own export assert its own completeness.** Compare the exported entry
-  count against the number of `CODEX_PAGE_TYPE` pages in the configured journal and
-  refuse — not warn — on a mismatch. Cheap, and it converts a silent partial into a
-  loud one.
-- **Say it in the runbook.** `migration-runbook.md` already has a "Housekeeping,
-  later" section about the `squireMigrationBackup` flag; the neighbouring rule is
-  *never take a codex backup with Librarian disabled.*
 
 ---
 
@@ -477,6 +467,48 @@ consumer releasing both modules together, the answer is nobody.
 it is not relitigated, and revisit only if Librarian ever ships to a world that
 updates the two modules independently. Squire's tool ids are `squire-quests` /
 `squire-codex` if it turns out to be needed.
+
+### L8 — The objective pin tooltip is designed but not implemented
+
+Three assets exist and nothing renders them:
+
+- [`templates/tooltip-pin-quests-objective.hbs`](../templates/tooltip-pin-quests-objective.hbs)
+- `TEMPLATES.TOOLTIP_PIN_QUEST_OBJECTIVE` in [`const.js:67`](../scripts/const.js#L67)
+- the `.quest-tooltip-container` block in [`quest-markers.css:14`](../styles/quest-markers.css#L14)
+
+The code that drove them came across from Squire broken — it referenced four
+identifiers `helpers.js` never imported and a `TEMPLATES.TOOLTIP_QUEST` key that
+does not exist — and was removed rather than left looking functional. The assets
+were kept deliberately: they are the design, and the template is well-formed.
+
+So this is a real half-finished feature, not debris. Hovering an objective pin on
+the canvas shows nothing today. Either implement it against
+`manager-quest-pins.js` — which already has the `pins.on('hover')` surface it would
+need — or delete all three assets. Do not leave it as-is indefinitely.
+
+### L9 — The architecture docs describe a module that no longer exists
+
+Both `documents/architecture/architecture-codex.md` and `architecture-quests.md`
+came across from Squire and were never rewritten for Librarian. They still describe
+the tray as the host, and between them name five files that do not exist here:
+`templates/tray.hbs`, `templates/handle-codex.hbs`, `templates/handle-quest.hbs`,
+`scripts/manager-pins.js`, `scripts/manager-notifications.js`.
+
+The codex one is the worse of the two. It has a "Placement in the Tray" section
+keyed on `viewMode === 'codex'` and a `showTabCodex` setting Librarian never
+registers, describes `PanelManager` injecting the panel, and its "Core Design
+Philosophy" is built on **Structured HTML Content** and a **Parser-Based
+Architecture** — which the data model replaced in 13.0.0. `CodexParser` survives
+only as an image extractor and a legacy fallback.
+
+This matters more than a normal stale doc, because this file is what the process
+rule at the top of this list points at: *"update the affected
+`documents/architecture/*.md`"* when work lands. Right now that instruction sends
+someone to a description of Squire.
+
+Do this **after A6 and 2a**, not before — the render restructure and the window
+decision rewrite most of what these documents describe, and rewriting them twice is
+the only way to waste the effort.
 
 ## Architecture decisions
 
@@ -748,6 +780,43 @@ remove one class of "the GM forgot to run it" failure. Not urgent — the curren
 is already in flight and should finish on the mechanism it started with.
 
 ---
+
+### A8 — Retire the migration tooling
+
+**Awaiting an explicit yes before deleting anything.**
+
+The Squire to Librarian migration is finished. Both worlds that ever held
+Squire-era codex data — dev and production — have run it, and neither module was
+released, so no third world exists or can exist. Nobody will need this again.
+
+Worse than merely finished: `migration-runbook.md` **can no longer be followed.**
+Its central instruction is *"Leave Squire on 13.6.1. Do NOT update Squire to
+13.7.0 yet"*, because until the migration runs Squire's manifest is the only thing
+declaring `coffee-pub-squire.codex`. Squire is at **13.8.1** — `documentTypes` is
+gone and every codex/quest script with it. `migrate-codex-from-squire.js` would
+now pass its own precondition (`game.modules.get(SQUIRE)?.active` is true) while
+the protection that check stood for is gone, and read `system` back from
+unvalidated pages.
+
+So the choice is delete or rewrite-as-history. Delete is the recommendation — git
+holds it, and a rewrite documents a procedure that can never run again.
+
+- [ ] `documents/migration-runbook.md`
+- [ ] `macros/migrate-codex-from-squire.js`
+- [ ] `macros/migrate-quests-from-squire.js`
+- [ ] The `macros/` directory, if those two were its only contents
+- [ ] The "Migrating from Coffee Pub Squire" section of `README.md`
+- [ ] The **In flight** section at the top of this file
+
+Already rescued: the export/subtype hazard the runbook carried now lives in
+`architecture/architecture-codex.md`, which is where it belongs — it is a property
+of owning a subtype, not a migration step.
+
+One thing to keep somewhere: **production still carries `squireMigrationBackup`
+flags** on migrated pages, holding each page's original type and system data. The
+runbook's "Housekeeping, later" note says to leave them until the new arrangement
+has been live long enough to trust. It has. Clearing them is optional, is the
+point of no return, and there is still no hurry.
 
 ## Backlog — quest enhancements
 

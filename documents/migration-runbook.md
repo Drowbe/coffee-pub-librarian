@@ -100,6 +100,14 @@ post-migration state and re-running the forward pass after a partial failure is 
 If Squire has already been updated to 13.7.0 and something is wrong, roll Squire back
 to 13.6.1 first — that restores the subtype declaration and with it the pages.
 
+## Never back up the codex with Librarian disabled
+
+A standing rule that outlives this migration, so it lives in
+[`architecture/architecture-codex.md`](architecture/architecture-codex.md) under
+"Export completeness, and the subtype hazard" rather than here. Short version:
+with Librarian disabled, codex pages do not load, and anything reading the journal
+reports success over a short list.
+
 ## Housekeeping, later
 
 Every migrated codex page carries a `squireMigrationBackup` flag holding its original

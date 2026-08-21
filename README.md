@@ -59,7 +59,7 @@ All releases, with their changelogs, are listed on the
 
 ## Dependencies
 
-- [Coffee Pub Blacksmith](https://github.com/Drowbe/coffee-pub-blacksmith) **13.12.2 or later** — required. Librarian uses its window framework, pins, tags, menubar and dialog APIs, and will not start without it.
+- [Coffee Pub Blacksmith](https://github.com/Drowbe/coffee-pub-blacksmith) **13.19.0 or later** — required. Librarian uses its window framework, pins, compendium resolver, party roster, menubar, toast and dialog APIs, its global Handlebars helpers, and will not start without it.
 - Foundry VTT v13 (v14 declared as maximum).
 
 ## Migrating from Coffee Pub Squire

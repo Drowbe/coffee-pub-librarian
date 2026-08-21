@@ -37,11 +37,7 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **H5** | High | Blacksmith API | CSS uses 69 raw hex literals and 3 design tokens | M |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — now shipped; drops ~600 duplicated lines | M |
 | **H7** | High | Codex | `related` has no edit or view UI anywhere | M |
-| **H8** | High | Perf | 31 `cloneNode`/`replaceChild` sites in the render path do nothing | S |
-| **H9** | High | Perf | `enrichHTML` runs per link per render; output is deterministic | S |
-| **H10** | High | Perf | `JSON.parse(JSON.stringify())` deep-clones the whole dataset every render | S |
 | **H11** | High | UI | Import progress bar has been dead since Squire 13.6.0 | S |
-| **M1** | Medium | Codex | Tag filter permanently expands every category | S |
 | **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
 | **M3** | Medium | Quests | **AUDIT** — quest pin visibility may share the codex pin no-op | M |
 | **M6** | Medium | Codex | New entries from the editor window set no ownership; import does | S |
@@ -63,9 +59,8 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **A5** | Decision | Suite | `coffee-pub-scribe` exists and is under-developed | — |
 | **A6** | Decision | Windows | Codex → Tool window; Quests → standard, master-detail. Zero Tool windows today | M |
 | **A7** | Decision | Migration | Macros vs Blacksmith's settings-adoption table | M |
-| **A8** | Decision | Migration | Retire the migration runbook and both macros — awaiting confirmation | S |
 
-Migration: [complete](#done--squire--librarian-migration).
+Deployment: [what is pending](#next--deploy-what-has-landed).
 Not scheduled: [backlog](#backlog--quest-enhancements).
 
 ## Closed
@@ -86,6 +81,11 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 | **M5** | Three dead exports in `utility-quest-parser.js` | *(same entry)* |
 | **M10** | Three multi-instance windows sharing one saved position key | *Codex, quest and export windows fought over one saved position* |
 | **M11** | Codex export could write a silent partial and report success | *The codex export refuses to write a partial file* |
+| **A8** | Migration runbook and both macros, unrunnable since Squire 13.8.1 | *The Squire → Librarian migration tooling* |
+| **H8** | 14 clone-and-rebind sites plus ~20 per-node bind loops, per render | *The codex panel's render path no longer rebuilds its listeners* |
+| **H9** | `enrichHTML` awaited per link, per render, sequentially | *(same entry)* |
+| **H10** | Whole dataset JSON-serialised and reparsed every render | *(same entry)* |
+| **M1** | Tag filter wiped `codexCollapsedCategories` and never restored it | *Filtering the codex by a tag no longer permanently expands every category* |
 
 Two changes in `[Unreleased]` were never tracked items and have no row: the
 **Blacksmith minimum bump** to 13.19.0, which came out of the deployment
@@ -94,19 +94,9 @@ discussion, and the **move of the export/subtype hazard** into
 
 ---
 
-## Done — Squire → Librarian migration
+## Next — deploy what has landed
 
-**Complete. Nothing to run.** Both worlds that ever held Squire-era codex data —
-dev and production — have migrated; production has been running codex on
-Librarian's subtype through everything above. Neither module was released, so no
-third world exists.
-
-`migration-runbook.md` can no longer be followed even if one did: it requires
-Squire to still declare `coffee-pub-squire.codex`, and Squire is at **13.8.1**
-with `documentTypes` and all codex/quest code removed. Retiring the runbook and
-both macros is **A8**, awaiting confirmation.
-
-What replaces it is a deployment checklist, not a migration:
+Everything above is in the working tree and none of it is in production yet.
 
 - [ ] Confirm production is on **Blacksmith 13.19.0** before pushing Librarian —
       the manifest minimum was raised to match what the code now uses.
@@ -245,44 +235,6 @@ changes to replace rather than merge.
 Reuse the panel's page index and `_renderCodexRef()` rather than growing a second
 name→page lookup.
 
-### H8 — 31 clone-and-rebind sites do nothing
-
-`_activateListeners()` runs `cloneNode(true)` + `replaceChild` before binding —
-**14 sites in `panel-codex.js`, 17 in `panel-quest.js`**. The idiom exists to strip
-pre-existing listeners, but `_activateListeners` runs once, immediately after
-`container.innerHTML = html`, so every node it touches is microseconds old and has
-none.
-
-Against a 314-entry codex that is roughly 2,200 deep subtree clones plus 2,200
-`replaceChild` per render. `.codex-entry-image img` is cloned too, which can force
-image re-decode.
-
-**Fix:** bind to the original node. Better: delegate to a stable parent, which also
-removes the per-entry binding cost entirely.
-
-### H9 — Link enrichment is re-done every render
-
-[`panel-codex.js:1946`](../scripts/panel-codex.js#L1946) awaits
-`TextEditor.enrichHTML()` once per resolved link, inside `for (const entry of
-entries)`. Categories are parallel; entries within a category are not. Characters
-alone can be up to 120 sequential awaits, ~314 across a real codex.
-
-`@UUID[uuid]{label}` output is deterministic given `uuid` + `label`, both stored on
-the link. A session-scoped `Map` keyed `` `${uuid}|${label}` `` takes a full render
-from ~314 enrich calls to ~0.
-
-### H10 — Whole dataset deep-cloned through JSON on every render
-
-[`panel-codex.js:2029`](../scripts/panel-codex.js#L2029) and
-[`panel-quest.js:3572`](../scripts/panel-quest.js#L3572) both do
-`JSON.parse(JSON.stringify(templateData))` immediately before rendering — a full
-serialise-and-reparse of every entry, tag, link and objective, per render.
-
-The stated intent is "break references and ensure only primitives are passed."
-Establish what actually needs breaking; if the answer is "nothing", delete it. If
-something does, `foundry.utils.deepClone` is cheaper and does not silently drop
-`undefined`, `Map`, and `Set` values the way a JSON round-trip does.
-
 ### H11 — The import progress bar has been dead since Squire 13.6.0
 
 `panel-codex.js` and `panel-quest.js` both drive `.tray-progress-bar-wrapper`,
@@ -301,17 +253,6 @@ and the delays with it. Right now it is neither.
 ---
 
 ## Medium
-
-### M1 — Tag filter permanently expands every category
-
-[`panel-codex.js:726`](../scripts/panel-codex.js#L726) — applying a tag filter does
-`setFlag('codexCollapsedCategories', {})`. The comment says "temporarily clear
-while filtering"; nothing restores it. Filter by any tag once and every category is
-permanently expanded.
-
-`render()` already computes `collapsedCategories` as `{}` when a tag filter is
-active, so the flag write is redundant as well as destructive — deleting it is
-likely the whole fix.
 
 ### M2 — Redundant collapse restore in the quest panel
 
@@ -621,27 +562,23 @@ changes — picking a type rebuilds the subtype list — and restores focus expl
 afterwards. A monotonic token stops a slow query repainting over a newer one, and
 the query is debounced 140ms.
 
-Librarian's panels do the opposite. `CodexPanel.render()` rebuilds
-`codexContainer.innerHTML` wholesale and re-binds every node, which is the root of
-three separate items already on this list:
+**The codex half of this is done** — that was 2a. `CodexPanel` now delegates to the
+container, caches enrichment, and no longer JSON round-trips its dataset; the four
+items it closed (H8, H9, H10, M1) are in [Closed](#closed). Search was already live
+DOM filtering rather than a re-render, which is the same choice Compendium Search
+makes and for the same reason.
 
-- **H8** — 31 `cloneNode`/`replaceChild` sites exist to strip listeners from nodes
-  that were just created. Delegation makes them unnecessary by construction.
-- **H9** — ~314 sequential `enrichHTML` awaits, redone on every render because
-  every render is a full rebuild.
-- **H10** — the whole dataset JSON round-tripped per render, same cause.
+**`panel-quest.js` still does the old thing**, and has 17 clone-and-rebind sites and
+the same JSON round-trip. It is not filed as its own item because **A1** and the
+master-detail layout rewrite that path anyway — but if quests get their two-pane
+view before A1 lands, the delegation work has to come with it. A left-pane
+selection that rebuilds and re-binds the whole list will feel worse than the
+single-column list does now.
 
-It also explains a fourth. Because a full re-render is too expensive to run per
-keystroke, search and tag filtering were implemented **a second time** as live DOM
-show/hide inside `_activateListeners` — so filtering exists twice, in two
-languages, and the two must agree. **M1** (the tag filter clobbering
-`codexCollapsedCategories`) is a direct symptom: filter state lives in the DOM
-*and* in a user flag, and the two fell out of step.
-
-The numbers make the case. Compendium Search reports **103ms across nine
-compendium packs** — genuinely expensive I/O. Librarian is slower than that against
-314 journal pages **already in memory**. The gap is not the data; it is the render
-architecture.
+What is still owed on the codex side is the part that only makes sense with the
+Tool shell: search and filters moving into `toolBarLeft`, and one filtering
+implementation instead of the current two (render-time filtering for tags, live DOM
+filtering for search). That is 2b, below.
 
 #### Recommendation
 
@@ -780,43 +717,6 @@ remove one class of "the GM forgot to run it" failure. Not urgent — the curren
 is already in flight and should finish on the mechanism it started with.
 
 ---
-
-### A8 — Retire the migration tooling
-
-**Awaiting an explicit yes before deleting anything.**
-
-The Squire to Librarian migration is finished. Both worlds that ever held
-Squire-era codex data — dev and production — have run it, and neither module was
-released, so no third world exists or can exist. Nobody will need this again.
-
-Worse than merely finished: `migration-runbook.md` **can no longer be followed.**
-Its central instruction is *"Leave Squire on 13.6.1. Do NOT update Squire to
-13.7.0 yet"*, because until the migration runs Squire's manifest is the only thing
-declaring `coffee-pub-squire.codex`. Squire is at **13.8.1** — `documentTypes` is
-gone and every codex/quest script with it. `migrate-codex-from-squire.js` would
-now pass its own precondition (`game.modules.get(SQUIRE)?.active` is true) while
-the protection that check stood for is gone, and read `system` back from
-unvalidated pages.
-
-So the choice is delete or rewrite-as-history. Delete is the recommendation — git
-holds it, and a rewrite documents a procedure that can never run again.
-
-- [ ] `documents/migration-runbook.md`
-- [ ] `macros/migrate-codex-from-squire.js`
-- [ ] `macros/migrate-quests-from-squire.js`
-- [ ] The `macros/` directory, if those two were its only contents
-- [ ] The "Migrating from Coffee Pub Squire" section of `README.md`
-- [ ] The **In flight** section at the top of this file
-
-Already rescued: the export/subtype hazard the runbook carried now lives in
-`architecture/architecture-codex.md`, which is where it belongs — it is a property
-of owning a subtype, not a migration step.
-
-One thing to keep somewhere: **production still carries `squireMigrationBackup`
-flags** on migrated pages, holding each page's original type and system data. The
-runbook's "Housekeeping, later" note says to leave them until the new arrangement
-has been live long enough to trust. It has. Clearing them is optional, is the
-point of no return, and there is still no hurry.
 
 ## Backlog — quest enhancements
 

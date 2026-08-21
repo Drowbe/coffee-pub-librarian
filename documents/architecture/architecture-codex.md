@@ -325,6 +325,19 @@ closed:
 and **refuses on any mismatch**. The export summary reports `N of N` rather than
 `N`, so the check is visible on success rather than only firing on failure.
 
+### Leftover from the Squire migration
+
+Codex pages migrated out of Squire carry a `squireMigrationBackup` flag holding
+their original `type` and `system` data — the thing that made the retype
+reversible. The migration is long finished and its tooling has been deleted, but
+the flags remain on migrated pages in both worlds.
+
+Clearing them is optional, is the point of no return, and there is no hurry. If
+you do clear them, note that nothing else reads the flag: it is inert storage, not
+a dependency.
+
+### The rules
+
 Two rules follow, and neither is optional:
 
 - **Never back up the codex with Librarian disabled.** Enable it, confirm the

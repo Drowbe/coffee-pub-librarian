@@ -13,8 +13,6 @@ import {
 } from './utility-resolver.js';
 import {
     getPinsApi,
-    isPinsApiAvailable,
-    createCodexPin,
     deleteCodexPin,
     beginCodexPinPlacement,
     unplaceCodexPin,
@@ -81,6 +79,26 @@ function buildCodexPageIndex(journal) {
     return index;
 }
 
+/**
+ * Session cache for enriched `@UUID[uuid]{label}` output.
+ *
+ * `TextEditor.enrichHTML` was awaited once per resolved link inside the per-entry
+ * loop, on every render. Categories ran in parallel; entries within a category did
+ * not — so a 314-entry codex cost hundreds of sequential awaits every time anything
+ * re-rendered, including pinning a single entry.
+ *
+ * The output is deterministic given `uuid` + `label`, and both are stored on the
+ * link, so the second render onward costs a Map lookup. Keyed on the pair rather
+ * than the uuid alone because the same document can be linked under different
+ * labels.
+ *
+ * Not invalidated: a renamed document changes the enriched anchor's text, and this
+ * would keep serving the old one until reload. That is the same staleness the
+ * unenriched label already has (the label is stored on the link, not read from the
+ * document), so caching introduces no new inconsistency.
+ */
+const _enrichedLinkCache = new Map();
+
 const CODEX_WINDOW_ID = `${MODULE.ID}-codex-window`;
 
 function openCodexWindow(options = {}) {
@@ -117,6 +135,10 @@ export class CodexPanel {
         // shut under the user. Hydrated lazily from the user flag on first use —
         // the constructor can run before `game.user` exists.
         this._expandedEntries = null;
+        // Delegated listeners are bound once per container rather than per render;
+        // these track which container currently holds them. See _bindDelegatedListeners.
+        this._boundContainer = null;
+        this._listenersAbort = null;
         this._setupHooks();
         // Pin events registered centrally by manager-pins.js initPinManager().
     }
@@ -354,6 +376,11 @@ export class CodexPanel {
      * @public
      */
     destroy() {
+        // The delegated handlers are bound to the container, not to individual
+        // nodes, so they outlive any re-render and have to be released explicitly.
+        this._listenersAbort?.abort();
+        this._listenersAbort = null;
+        this._boundContainer = null;
         this.element = null;
     }
 
@@ -547,634 +574,516 @@ export class CodexPanel {
     }
 
     /**
-     * Set up event listeners
+     * Wire the panel's interactions.
+     *
+     * Two passes with very different lifetimes:
+     *
+     *  - `_bindDelegatedListeners` runs ONCE per container element. Delegated
+     *    handlers live on the container, which survives `innerHTML = html`, so a
+     *    re-render costs no rebinding at all.
+     *  - `_applyFilterState` runs on EVERY render, because the freshly written
+     *    markup always starts unfiltered.
+     *
+     * This replaced 14 `cloneNode(true)` + `replaceChild` sites and ~20 per-node
+     * `querySelectorAll().forEach(addEventListener)` loops. The clone idiom exists
+     * to strip pre-existing listeners, but this ran once immediately after
+     * `container.innerHTML = html`, so every node it touched was microseconds old
+     * and carried none — roughly 2,200 deep subtree clones per render against a
+     * 314-entry codex, for nothing. `.codex-entry-image img` was cloned too, which
+     * can force an image re-decode.
+     *
+     * @param {HTMLElement|jQuery} html
      * @private
      */
     _activateListeners(html) {
-        // v13: Detect and convert jQuery to native DOM if needed
-        let nativeHtml = html;
-        if (html && (html.jquery || typeof html.find === 'function')) {
-            nativeHtml = html[0] || html.get?.(0) || html;
-        }
-        
-        // Search input - live DOM filtering
-        const codexSearchContainer = nativeHtml.querySelector('.codex-search');
-        const searchInput = codexSearchContainer?.querySelector('input');
-        const clearButton = nativeHtml.querySelector('.clear-search');
-        
-        // --- DOM-based filtering for search and tags ---
-        const filterEntries = () => {
-            const search = this.filters.search.trim().toLowerCase();
-            // v13: Use nativeHtml instead of html
-            nativeHtml.querySelectorAll('.codex-entry').forEach(entry => {
-                let text = entry.textContent?.toLowerCase() || '';
-                let searchMatch = true;
-                if (search) {
-                    searchMatch = text.includes(search);
-                }
-                // Hide entries the user cannot see (non-GMs)
-                if (!game.user.isGM) {
-                    // Try to get ownership from data attribute, fallback to hiding if not present
-                    const ownershipDefault = entry.dataset.ownershipDefault;
-                    if (typeof ownershipDefault !== 'undefined' && parseInt(ownershipDefault) < CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER) {
-                        entry.style.display = 'none';
-                        return;
-                    }
-                }
-                entry.style.display = searchMatch ? '' : 'none';
-            });
-            // Hide category sections with no visible entries
-            // v13: Use nativeHtml instead of html
-            nativeHtml.querySelectorAll('.codex-section').forEach(section => {
-                // Check if section has any visible entries
-                const hasVisible = section.querySelector('.codex-entry[style*="display: block"], .codex-entry:not([style*="display: none"])') !== null;
-                section.style.display = hasVisible ? '' : 'none';
-            });
-        };
+        const container = getNativeElement(html);
+        if (!container) return;
+        this._bindDelegatedListeners(container);
+        this._applyFilterState(container);
+    }
 
-        if (searchInput) {
-            // Clone to remove existing listeners
-            const newInput = searchInput.cloneNode(true);
-            searchInput.parentNode?.replaceChild(newInput, searchInput);
-            
-            newInput.addEventListener('input', (event) => {
-                const searchValue = event.target.value.toLowerCase();
-            this.filters.search = searchValue;
-            // Show all entries and sections before filtering
-            // v13: Use nativeHtml instead of html
-            nativeHtml.querySelectorAll('.codex-entry').forEach(entry => {
-                entry.style.display = '';
-            });
-            nativeHtml.querySelectorAll('.codex-section').forEach(section => {
-                section.style.display = '';
-            });
-            if (searchValue) {
-                if (clearButton) {
-                    clearButton.classList.remove('disabled');
-                }
-                // Always expand all categories during search
-                nativeHtml.querySelectorAll('.codex-section').forEach(section => {
-                    section.classList.remove('collapsed');
-                });
-                filterEntries();
-            } else {
-                if (clearButton) {
-                    clearButton.classList.add('disabled');
-                }
-                // When search is cleared, restore original collapsed states
-                const collapsedCategories = game.user.getFlag(MODULE.ID, 'codexCollapsedCategories') || {};
-                for (const [category, collapsed] of Object.entries(collapsedCategories)) {
-                    if (collapsed) {
-                        // v13: Use safer selector approach to handle values with newlines/whitespace
-                        const sections = nativeHtml.querySelectorAll('.codex-section[data-category]');
-                        const section = Array.from(sections).find(s => {
-                            const attrValue = s.getAttribute('data-category');
-                            return attrValue && attrValue.trim() === category.trim();
-                        });
-                        if (section) {
-                            section.classList.add('collapsed');
-                        }
-                    }
-                }
-                // Only filter by tags if any are selected
-                if (this.filters.tags && this.filters.tags.length > 0) {
-                    // Always expand all categories for tag filtering
-                    nativeHtml.querySelectorAll('.codex-section').forEach(section => {
-                        section.classList.remove('collapsed');
-                    });
-                    filterEntries();
+    /**
+     * Bind once per container. Idempotent: called on every render, binds on the
+     * first, and rebinds only when the host hands us a different element — which
+     * happens when the browser window itself re-renders.
+     * @private
+     */
+    _bindDelegatedListeners(container) {
+        if (this._boundContainer === container) return;
+        this._listenersAbort?.abort();
+        this._listenersAbort = new AbortController();
+        this._boundContainer = container;
+        const { signal } = this._listenersAbort;
+
+        container.addEventListener('click', event => this._onPanelClick(event, container), { signal });
+        container.addEventListener('input', event => this._onPanelInput(event, container), { signal });
+    }
+
+    /**
+     * Show/hide entries and sections for the current filters.
+     *
+     * Live DOM filtering rather than a re-render, deliberately: re-rendering on every
+     * keystroke would rebuild the search input and drop focus and caret position.
+     * @private
+     */
+    _filterEntries(container) {
+        const search = this.filters.search.trim().toLowerCase();
+        container.querySelectorAll('.codex-entry').forEach(entry => {
+            // An entry a player cannot observe never becomes visible, whatever the search says
+            if (!game.user.isGM) {
+                const ownershipDefault = entry.dataset.ownershipDefault;
+                if (typeof ownershipDefault !== 'undefined'
+                    && parseInt(ownershipDefault) < CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER) {
+                    entry.style.display = 'none';
+                    return;
                 }
             }
-            });
-        }
-
-        // Clear search button
-        if (clearButton) {
-            clearButton.classList.remove('disabled');
-            // Clone to remove existing listeners
-            const newClearButton = clearButton.cloneNode(true);
-            clearButton.parentNode?.replaceChild(newClearButton, clearButton);
-            
-            newClearButton.addEventListener('click', (event) => {
-                this.filters.search = "";
-                this.filters.tags = [];
-                if (searchInput) {
-                    searchInput.value = "";
-                }
-                // v13: Use native DOM methods
-                nativeHtml.querySelectorAll('.codex-tag.selected').forEach(tag => {
-                    tag.classList.remove('selected');
-                });
-                
-                // Show all entries and sections
-                nativeHtml.querySelectorAll('.codex-entry').forEach(entry => {
-                    entry.style.display = '';
-                });
-                nativeHtml.querySelectorAll('.codex-section').forEach(section => {
-                    section.style.display = '';
-                });
-                
-                // Restore original collapsed states
-                const collapsedCategories = game.user.getFlag(MODULE.ID, 'codexCollapsedCategories') || {};
-                for (const [category, collapsed] of Object.entries(collapsedCategories)) {
-                    if (collapsed) {
-                        // Match by iterating to handle category values with newlines/whitespace
-                        const sections = nativeHtml.querySelectorAll('.codex-section[data-category]');
-                        const section = Array.from(sections).find(s => {
-                            const attrValue = s.getAttribute('data-category');
-                            return attrValue && attrValue.trim() === category.trim();
-                        });
-                        if (section) {
-                            section.classList.add('collapsed');
-                        }
-                    }
-                }
-                
-                this.render(this.element);
-            });
-        }
-
-        // Tag cloud tag selection
-        // v13: Use nativeHtml instead of html
-        nativeHtml.querySelectorAll('.codex-tag-cloud .codex-tag').forEach(tag => {
-            const newTag = tag.cloneNode(true);
-            tag.parentNode?.replaceChild(newTag, tag);
-            newTag.addEventListener('click', (event) => {
-                event.preventDefault();
-                const tagValue = event.currentTarget.dataset.tag;
-                const tagIndex = this.filters.tags.indexOf(tagValue);
-                if (tagIndex === -1) {
-                    this.filters.tags.push(tagValue);
-                } else {
-                    this.filters.tags.splice(tagIndex, 1);
-                }
-                
-                // Show all entries and sections before filtering
-                nativeHtml.querySelectorAll('.codex-entry').forEach(entry => {
-                    entry.style.display = '';
-                });
-                nativeHtml.querySelectorAll('.codex-section').forEach(section => {
-                    section.style.display = '';
-                });
-                
-                // If we have tags selected, expand all categories
-                if (this.filters.tags.length > 0) {
-                    nativeHtml.querySelectorAll('.codex-section').forEach(section => {
-                        section.classList.remove('collapsed');
-                    });
-                    // Temporarily clear the collapsed state in user flags while filtering
-                    game.user.setFlag(MODULE.ID, 'codexCollapsedCategories', {});
-                } else {
-                    // If no tags selected, restore original collapsed states
-                    const collapsedCategories = game.user.getFlag(MODULE.ID, 'codexCollapsedCategories') || {};
-                    for (const [category, collapsed] of Object.entries(collapsedCategories)) {
-                        if (collapsed) {
-                            // Match by iterating to handle category values with newlines/whitespace
-                            const sections = nativeHtml.querySelectorAll('.codex-section[data-category]');
-                            const section = Array.from(sections).find(s => {
-                                const attrValue = s.getAttribute('data-category');
-                                return attrValue && attrValue.trim() === category.trim();
-                            });
-                            if (section) {
-                                section.classList.add('collapsed');
-                            }
-                        }
-                    }
-                }
-                
-                this.render(this.element);
-            });
+            const matches = !search || (entry.textContent?.toLowerCase() || '').includes(search);
+            entry.style.display = matches ? '' : 'none';
         });
 
-        // Toggle tag cloud
-        // v13: Use nativeHtml instead of html
-        const toggleTagsButton = nativeHtml.querySelector('.toggle-tags-button');
-        if (toggleTagsButton) {
-            const newButton = toggleTagsButton.cloneNode(true);
-            toggleTagsButton.parentNode?.replaceChild(newButton, toggleTagsButton);
-            newButton.addEventListener('click', () => {
-                const tagCloud = nativeHtml.querySelector('.codex-tag-cloud');
-                if (tagCloud) {
-                    const isCollapsed = tagCloud.classList.contains('collapsed');
-                    game.user.setFlag(MODULE.ID, 'codexTagCloudCollapsed', !isCollapsed);
-                    this.render(this.element);
-                }
-            });
+        // A category with nothing left visible hides itself
+        container.querySelectorAll('.codex-section').forEach(section => {
+            const hasVisible = Array.from(section.querySelectorAll('.codex-entry'))
+                .some(entry => entry.style.display !== 'none');
+            section.style.display = hasVisible ? '' : 'none';
+        });
+    }
+
+    /** Clear every display override, so filtering starts from a known state. @private */
+    _showAll(container) {
+        container.querySelectorAll('.codex-entry, .codex-section')
+            .forEach(el => { el.style.display = ''; });
+    }
+
+    /**
+     * Re-apply stored category collapse to the DOM.
+     *
+     * Exact key match, the same lookup the template does at render time. The old
+     * version compared `attrValue.trim() === category.trim()`, which let a junk key
+     * like `" Locations\n "` claim a real section — the pollution
+     * `_pruneCategoryFlags` exists to clean up after.
+     * @private
+     */
+    _restoreCollapsedFromFlag(container) {
+        const collapsed = game.user.getFlag(MODULE.ID, 'codexCollapsedCategories') || {};
+        for (const [category, isCollapsed] of Object.entries(collapsed)) {
+            if (!isCollapsed) continue;
+            const section = container.querySelector(`.codex-section[data-category="${CSS.escape(category)}"]`);
+            if (section) section.classList.add('collapsed');
+        }
+    }
+
+    /**
+     * Post-render pass. The template always emits every entry visible, so anything
+     * the user had filtered out has to be re-hidden here.
+     * @private
+     */
+    _applyFilterState(container) {
+        const hasSearch = !!this.filters.search;
+        const hasTags = !!this.filters.tags?.length;
+
+        const clearButton = container.querySelector('.clear-search');
+        if (clearButton) clearButton.classList.toggle('disabled', !hasSearch);
+
+        if (!hasSearch && !hasTags) {
+            this._showAll(container);
+            return;
+        }
+        this._filterEntries(container);
+    }
+
+    /** Delegated `input`. @private */
+    _onPanelInput(event, container) {
+        const input = event.target;
+        if (!input.matches?.('.codex-search input')) return;
+
+        this.filters.search = String(input.value || '').toLowerCase();
+        this._showAll(container);
+
+        const clearButton = container.querySelector('.clear-search');
+        if (clearButton) clearButton.classList.toggle('disabled', !this.filters.search);
+
+        if (this.filters.search) {
+            // Searching looks through collapsed categories, so open them all — in the
+            // DOM only. The stored collapse state is untouched and comes back when the
+            // search is cleared.
+            container.querySelectorAll('.codex-section').forEach(s => s.classList.remove('collapsed'));
+            this._filterEntries(container);
+            return;
         }
 
-        // Codex titlebar "..." context menu (Blacksmith) - all actions except Add
-        const codexTitlebarMenuBtn = nativeHtml.querySelector('.codex-titlebar-menu');
-        if (codexTitlebarMenuBtn && getBlacksmith()?.uiContextMenu?.show) {
-            const newMenuBtn = codexTitlebarMenuBtn.cloneNode(true);
-            codexTitlebarMenuBtn.parentNode?.replaceChild(newMenuBtn, codexTitlebarMenuBtn);
-            newMenuBtn.addEventListener('click', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                const coreItems = [
+        this._restoreCollapsedFromFlag(container);
+        if (this.filters.tags?.length) {
+            container.querySelectorAll('.codex-section').forEach(s => s.classList.remove('collapsed'));
+            this._filterEntries(container);
+        }
+    }
+
+    /**
+     * Delegated `click`. Ordered most-specific-first, because these selectors nest —
+     * an entry's menu button sits inside its title row, which sits inside the card.
+     * @private
+     */
+    async _onPanelClick(event, container) {
+        const target = event.target;
+        const hit = selector => target.closest?.(selector);
+
+        // --- Entry collapse ---------------------------------------------------
+        const entryToggle = hit('.codex-entry-toggle');
+        if (entryToggle) {
+            event.stopPropagation();
+            this._toggleEntryCollapsed(entryToggle.closest('.codex-entry'));
+            return;
+        }
+
+        // --- Per-entry controls -----------------------------------------------
+        const menuBtn = hit('.codex-entry-menu');
+        if (menuBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            this._openEntryMenu(event, menuBtn);
+            return;
+        }
+
+        const visBtn = hit('.codex-entry-visibility');
+        if (visBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            await this._toggleEntryVisibility(visBtn);
+            return;
+        }
+
+        const pinBtn = hit('.codex-entry-pin');
+        if (pinBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            await this._toggleEntryPin(pinBtn);
+            return;
+        }
+
+        const locateBtn = hit('.codex-entry-locate');
+        if (locateBtn) {
+            event.preventDefault();
+            event.stopPropagation();
+            panToPin(locateBtn.dataset.pinId);
+            return;
+        }
+
+        // --- Anything that opens a journal page --------------------------------
+        // "Read more", the player feather, and legacy `data-uuid` links all open the
+        // parent journal focused on the page. `page.sheet.render(true)` would open the
+        // page's standalone EDIT sheet instead, which is not the reading view.
+        const pageLink = hit('.codex-read-more') || hit('.codex-entry-feather-user') || hit('.codex-entry-link');
+        if (pageLink?.dataset?.uuid) {
+            event.preventDefault();
+            event.stopPropagation();
+            const page = await fromUuid(pageLink.dataset.uuid);
+            if (page?.parent) page.parent.sheet.render(true, { pageId: page.id });
+            return;
+        }
+
+        // --- Codex cross-references --------------------------------------------
+        // `related` names and location levels point at codex ENTRIES, not documents,
+        // so they reveal the entry in this panel — the same destination as
+        // double-clicking its pin. Document `links` are untouched and keep Foundry's
+        // own content-link behaviour.
+        const ref = hit('.codex-ref[data-uuid]');
+        if (ref) {
+            event.preventDefault();
+            event.stopPropagation();
+            if (this._focusEntry(ref.dataset.uuid)) return;
+            ui.notifications.info(`"${ref.textContent}" is filtered out of the current view.`);
+            return;
+        }
+
+        // --- Entry image ---------------------------------------------------------
+        if (target.matches?.('.codex-entry-image img')) {
+            event.preventDefault();
+            event.stopPropagation();
+            await this._openEntryImage(target);
+            return;
+        }
+
+        // --- Entry title, after the controls that sit inside it -------------------
+        const entryName = hit('.codex-entry-name');
+        if (entryName) {
+            event.preventDefault();
+            event.stopPropagation();
+            this._toggleEntryCollapsed(entryName.closest('.codex-entry'));
+            return;
+        }
+
+        // --- Tag cloud ------------------------------------------------------------
+        const tag = hit('.codex-tag-cloud .codex-tag');
+        if (tag) {
+            event.preventDefault();
+            this._toggleTagFilter(tag.dataset.tag, container);
+            return;
+        }
+
+        if (hit('.toggle-tags-button')) {
+            const tagCloud = container.querySelector('.codex-tag-cloud');
+            if (tagCloud) {
+                game.user.setFlag(MODULE.ID, 'codexTagCloudCollapsed', !tagCloud.classList.contains('collapsed'));
+                this.render(this.element);
+            }
+            return;
+        }
+
+        // --- Titlebar --------------------------------------------------------------
+        if (hit('.codex-titlebar-menu')) {
+            event.preventDefault();
+            event.stopPropagation();
+            this._openTitlebarMenu(event);
+            return;
+        }
+
+        if (hit('.add-codex-button')) {
+            await this._onAddEntry();
+            return;
+        }
+
+        if (hit('.clear-search')) {
+            this._clearFilters(container);
+            return;
+        }
+
+        // --- Category collapse ------------------------------------------------------
+        // Only the chevron and the heading toggle, not the whole header bar.
+        const categoryHeader = hit('.codex-category');
+        if (categoryHeader && (hit('.fa-chevron-down') || hit('h3'))) {
+            event.preventDefault();
+            event.stopPropagation();
+            const section = categoryHeader.closest('.codex-section');
+            if (!section) return;
+            this._setCategoryCollapsed(section.dataset.category, section.classList.toggle('collapsed'));
+        }
+    }
+
+    /** @private */
+    _clearFilters(container) {
+        this.filters.search = '';
+        this.filters.tags = [];
+        const input = container.querySelector('.codex-search input');
+        if (input) input.value = '';
+        container.querySelectorAll('.codex-tag.selected').forEach(t => t.classList.remove('selected'));
+        this._showAll(container);
+        this._restoreCollapsedFromFlag(container);
+        this.render(this.element);
+    }
+
+    /** @private */
+    _toggleTagFilter(tagValue, container) {
+        const index = this.filters.tags.indexOf(tagValue);
+        if (index === -1) this.filters.tags.push(tagValue);
+        else this.filters.tags.splice(index, 1);
+
+        this._showAll(container);
+
+        if (this.filters.tags.length > 0) {
+            // Expanded in the DOM only. render() independently treats an active tag
+            // filter as "no categories collapsed", so the stored state never needs
+            // touching — this used to clear `codexCollapsedCategories` outright and
+            // never restore it, permanently expanding every category for that user.
+            container.querySelectorAll('.codex-section').forEach(s => s.classList.remove('collapsed'));
+        } else {
+            this._restoreCollapsedFromFlag(container);
+        }
+        this.render(this.element);
+    }
+
+    /** @private */
+    async _onAddEntry() {
+        if (!game.user.isGM) return;
+        const journalId = game.settings.get(MODULE.ID, 'codexJournal');
+        if (!journalId || journalId === 'none') {
+            ui.notifications.warn('No codex journal selected. Use the … menu to select one.');
+            return;
+        }
+        if (!game.journal.get(journalId)) {
+            ui.notifications.error('Could not find the codex journal.');
+            return;
+        }
+        await openCodexWindow();
+    }
+
+    /** @private */
+    async _openEntryImage(imgEl) {
+        const src = imgEl.getAttribute('src');
+        if (!src) return;
+        const uuid = imgEl.closest('.codex-entry')?.dataset?.uuid || null;
+        let title = imgEl.getAttribute('alt') || 'Codex Image';
+        if (uuid) {
+            try {
+                const page = await fromUuid(uuid);
+                if (page?.name) title = page.name;
+            } catch (_) { /* fall back to the alt text */ }
+        }
+        // v13 AppV2 signature: src and title live in options
+        new foundry.applications.apps.ImagePopout({ src, uuid, shareable: true, window: { title } }).render(true);
+    }
+
+    /** @private */
+    async _toggleEntryVisibility(button) {
+        if (!game.user.isGM) return;
+        const uuid = button.dataset.uuid;
+        if (!uuid) return;
+        const page = await fromUuid(uuid);
+        if (!page) return;
+
+        const current = page.ownership?.default ?? 0;
+        const next = current >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER
+            ? CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE
+            : CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+        const isVisible = next >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+
+        // Skip the full re-render this ownership change would otherwise trigger via
+        // the updateJournalEntryPage hook: it resets scroll and collapses cards,
+        // making the GM re-find their place. Patch the icon in place instead.
+        await page.update({ 'ownership.default': next }, { squireSkipCodexRender: true });
+        await updateCodexPinVisibility(uuid);
+
+        button.classList.toggle('visible', isVisible);
+        button.setAttribute('title', isVisible ? 'Hide from Players' : 'Show to Players');
+        const menuIcon = button.parentNode?.querySelector(`.codex-entry-menu[data-uuid="${CSS.escape(uuid)}"]`);
+        if (menuIcon) menuIcon.dataset.visible = String(isVisible);
+    }
+
+    /** @private */
+    async _toggleEntryPin(button) {
+        if (!game.user.isGM) return;
+        const { uuid, name, category, hasPinOnScene } = button.dataset;
+        if (hasPinOnScene === 'true') {
+            // Unplace from the scene, keeping the pin's design; sync hooks re-render
+            await unplaceCodexPin(uuid);
+            await this._refreshData();
+            this.render(this.element);
+            return;
+        }
+        // Enter canvas placement mode; sync hooks re-render when the pin lands
+        await beginCodexPinPlacement(uuid, name, category);
+    }
+
+    /** @private */
+    _openEntryMenu(event, button) {
+        if (!game.user.isGM) return;
+        const ctxMenu = getBlacksmith()?.uiContextMenu;
+        if (!ctxMenu?.show) return;
+
+        const uuid = button.dataset.uuid;
+        const entryEl = button.closest('.codex-entry');
+        const hasPinId = !!entryEl?.dataset?.pinId;
+
+        ctxMenu.show({
+            id: `${MODULE.ID}-codex-entry-menu`,
+            x: event.clientX,
+            y: event.clientY,
+            zones: {
+                gm: [
                     {
-                        name: 'Refresh Codex',
-                        icon: 'fa-solid fa-sync-alt',
+                        name: 'Open Journal Page',
+                        icon: 'fa-solid fa-feather',
                         callback: async () => {
+                            const doc = await fromUuid(uuid);
+                            // Reading view, not the page's standalone edit sheet
+                            if (doc?.parent) doc.parent.sheet.render(true, { pageId: doc.id });
+                            else if (doc) doc.sheet.render(true);
+                        }
+                    },
+                    {
+                        name: 'Edit Entry',
+                        icon: 'fa-solid fa-pen',
+                        callback: async () => {
+                            const page = await fromUuid(uuid);
+                            if (page) await openCodexWindow({ page });
+                        }
+                    },
+                    ...(hasPinId ? [{
+                        name: 'Configure Pin',
+                        icon: 'fa-solid fa-palette',
+                        callback: async () => {
+                            const pins = getPinsApi();
+                            const pinId = entryEl?.dataset?.pinId;
+                            if (pins?.configure && pinId) await pins.configure(pinId);
+                        }
+                    },
+                    {
+                        name: 'Clear Pin',
+                        icon: 'fa-solid fa-eraser',
+                        callback: async () => {
+                            await deleteCodexPin(uuid);
                             await this._refreshData();
                             this.render(this.element);
-                            ui.notifications.info('Codex refreshed.');
                         }
-                    }
-                ];
-                if (this.selectedJournal) {
-                    coreItems.unshift({
-                        name: 'Open Codex Journal',
-                        icon: 'fa-solid fa-feather',
-                        callback: () => this.selectedJournal.sheet.render(true)
-                    });
-                }
-                const gmItems = game.user.isGM ? [
+                    }] : []),
                     {
-                        name: 'Select Journal for Codex',
-                        icon: 'fa-solid fa-cog',
-                        callback: () => {
-                            showJournalPicker({
-                                title: 'Select Codex Journal',
-                                selectedId: game.settings.get(MODULE.ID, 'codexJournal'),
-                                onSelect: async (journalId) => {
-                                    await game.settings.set(MODULE.ID, 'codexJournal', journalId);
-                                },
-                                reRender: async () => {
-                                    await this._refreshData();
-                                    this.render(this.element);
-                                }
+                        name: 'Delete Entry',
+                        icon: 'fa-solid fa-trash',
+                        callback: async () => {
+                            const confirmed = await getBlacksmith().dialog.confirm({
+                                title: 'Delete Entry',
+                                content: '<p>Delete this codex entry? This cannot be undone.</p>',
+                                confirmLabel: 'Delete Entry',
+                                confirmIcon: 'fa-solid fa-trash',
+                                destructive: true
                             });
+                            if (!confirmed) return;
+                            if (hasPinId) await deleteCodexPin(uuid);
+                            const page = await fromUuid(uuid);
+                            if (page) await page.delete();
                         }
-                    },
-                    {
-                        name: 'Auto-Discover from Party Inventories',
-                        icon: 'fa-solid fa-search-plus',
-                        callback: () => this._autoDiscoverFromInventories()
-                    },
-                    {
-                        name: 'Auto-Link Unresolved Links',
-                        icon: 'fa-solid fa-link',
-                        callback: () => this._autoLinkUnresolved()
-                    },
-                    {
-                        name: 'Import Codex from JSON',
-                        icon: 'fa-solid fa-file-import',
-                        callback: () => this._openImportCodexDialog()
-                    },
-                    {
-                        name: 'Export Codex as JSON',
-                        icon: 'fa-solid fa-file-export',
-                        callback: () => this._openExportCodexDialog()
                     }
-                ] : [];
-                getBlacksmith().uiContextMenu.show({
-                    id: `${MODULE.ID}-codex-titlebar-menu`,
-                    x: event.clientX,
-                    y: event.clientY,
-                    zones: { core: coreItems, gm: gmItems }
-                });
-            });
-        }
-
-        // Add new codex entry button (only action outside menu)
-        // v13: Use nativeHtml instead of html
-        const addCodexButton = nativeHtml.querySelector('.add-codex-button');
-        if (addCodexButton) {
-            const newButton = addCodexButton.cloneNode(true);
-            addCodexButton.parentNode?.replaceChild(newButton, addCodexButton);
-            newButton.addEventListener('click', async () => {
-                if (!game.user.isGM) return;
-
-                const journalId = game.settings.get(MODULE.ID, 'codexJournal');
-                if (!journalId || journalId === 'none') {
-                    ui.notifications.warn("No codex journal selected. Use the … menu to select one.");
-                    return;
-                }
-
-                const journal = game.journal.get(journalId);
-                if (!journal) {
-                    ui.notifications.error("Could not find the codex journal.");
-                    return;
-                }
-
-                await openCodexWindow();
-            });
-        }
-
-        // "Read more" opens the entry's journal page (full Expanded Details)
-        nativeHtml.querySelectorAll('.codex-read-more').forEach(link => {
-            link.addEventListener('click', async (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                const uuid = event.currentTarget.dataset.uuid;
-                if (!uuid) return;
-                const page = await fromUuid(uuid);
-                // Open the parent journal focused on the page — page.sheet.render(true)
-                // would open the page's standalone EDIT sheet, not the reading view
-                if (page?.parent) {
-                    page.parent.sheet.render(true, { pageId: page.id });
-                }
-            });
-        });
-
-        // Pan the canvas to this entry's pin. Only rendered when the pin is on the
-        // scene being viewed, which is the only time panning can land anywhere.
-        nativeHtml.querySelectorAll('.codex-entry-locate').forEach(btn => {
-            btn.addEventListener('click', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                panToPin(event.currentTarget.dataset.pinId);
-            });
-        });
-
-        // Related-entry and location references jump to that entry IN THE TRAY —
-        // the same destination as double-clicking its codex pin. These name codex
-        // entries, not documents; opening the journal behind one would be a
-        // different (and more disruptive) thing than the user asked for.
-        // Document `links` are unaffected: those are real documents and keep
-        // Foundry's own content-link behavior.
-        nativeHtml.querySelectorAll('.codex-ref[data-uuid]').forEach(ref => {
-            ref.addEventListener('click', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                const uuid = event.currentTarget.dataset.uuid;
-                if (!uuid) return;
-                if (this._focusEntry(uuid)) return;
-                // Rendered out by an active tag filter — say so rather than
-                // silently doing nothing.
-                ui.notifications.info(
-                    `"${event.currentTarget.textContent}" is filtered out of the current view.`
-                );
-            });
-        });
-
-        // Feather icon opens the current journal page (Player / non-GM)
-        nativeHtml.querySelectorAll('.codex-entry-feather-user').forEach(feather => {
-            const newFeather = feather.cloneNode(true);
-            feather.parentNode?.replaceChild(newFeather, feather);
-            newFeather.addEventListener('click', async (event) => {
-                event.preventDefault();
-                const uuid = event.currentTarget.dataset.uuid;
-                if (uuid) {
-                    const page = await fromUuid(uuid);
-                    if (page && page.parent) {
-                        page.parent.sheet.render(true, { pageId: page.id });
-                    }
-                }
-            });
-        });
-
-        // Link clicks (old-style data-uuid links; enriched @UUID links are handled by Foundry)
-        nativeHtml.querySelectorAll('.codex-entry-link').forEach(link => {
-            const newLink = link.cloneNode(true);
-            link.parentNode?.replaceChild(newLink, link);
-            newLink.addEventListener('click', async (event) => {
-                const uuid = event.currentTarget.dataset.uuid;
-                if (uuid) {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    const page = await fromUuid(uuid);
-                    if (page && page.parent) {
-                        page.parent.sheet.render(true, { pageId: page.id });
-                    }
-                }
-            });
-        });
-
-        nativeHtml.querySelectorAll('.codex-entry-image img').forEach(image => {
-            const newImage = image.cloneNode(true);
-            image.parentNode?.replaceChild(newImage, image);
-            newImage.addEventListener('click', async (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-
-                const imgEl = event.currentTarget;
-                const src = imgEl.getAttribute('src');
-                if (!src) return;
-
-                const entryEl = imgEl.closest('.codex-entry');
-                const uuid = entryEl?.dataset?.uuid || null;
-                let title = imgEl.getAttribute('alt') || 'Codex Image';
-
-                if (uuid) {
-                    try {
-                        const page = await fromUuid(uuid);
-                        if (page?.name) title = page.name;
-                    } catch (_) {}
-                }
-
-                // v13 AppV2 signature: src and title live in options
-                const imagePopout = new foundry.applications.apps.ImagePopout({
-                    src,
-                    uuid,
-                    shareable: true,
-                    window: { title }
-                });
-                imagePopout.render(true);
-            });
-        });
-
-        // Per-entry "..." context menu (GM only)
-        nativeHtml.querySelectorAll('.codex-entry-menu').forEach(menuBtn => {
-            const newBtn = menuBtn.cloneNode(true);
-            menuBtn.parentNode?.replaceChild(newBtn, menuBtn);
-            newBtn.addEventListener('click', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (!game.user.isGM) return;
-
-                const uuid      = newBtn.dataset.uuid;
-                const entryEl   = newBtn.closest('.codex-entry');
-                const isVisible = entryEl?.dataset?.ownershipDefault >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER
-                    || parseInt(entryEl?.dataset?.ownershipDefault ?? '0') >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
-                const hasPinId  = !!(entryEl?.dataset?.pinId);
-
-                const ctxMenu = getBlacksmith()?.uiContextMenu;
-                if (!ctxMenu?.show) return;
-
-                ctxMenu.show({
-                    id: `${MODULE.ID}-codex-entry-menu`,
-                    x: event.clientX,
-                    y: event.clientY,
-                    zones: {
-                        gm: [
-                            {
-                                name: 'Open Journal Page',
-                                icon: 'fa-solid fa-feather',
-                                callback: async () => {
-                                    const doc = await fromUuid(uuid);
-                                    // Journal reading view, not the page's standalone edit sheet
-                                    if (doc?.parent) doc.parent.sheet.render(true, { pageId: doc.id });
-                                    else if (doc) doc.sheet.render(true);
-                                }
-                            },
-                            {
-                                name: 'Edit Entry',
-                                icon: 'fa-solid fa-pen',
-                                callback: async () => {
-                                    const page = await fromUuid(uuid);
-                                    if (!page) return;
-                                    await openCodexWindow({ page });
-                                }
-                            },
-                            ...(hasPinId ? [{
-                                name: 'Configure Pin',
-                                icon: 'fa-solid fa-palette',
-                                callback: async () => {
-                                    const pins = getPinsApi();
-                                    const pinId = entryEl?.dataset?.pinId;
-                                    if (pins?.configure && pinId) {
-                                        await pins.configure(pinId);
-                                    }
-                                }
-                            },
-                            {
-                                name: 'Clear Pin',
-                                icon: 'fa-solid fa-eraser',
-                                callback: async () => {
-                                    await deleteCodexPin(uuid);
-                                    await this._refreshData();
-                                    this.render(this.element);
-                                }
-                            }] : []),
-                            {
-                                name: 'Delete Entry',
-                                icon: 'fa-solid fa-trash',
-                                callback: async () => {
-                                    const confirmed = await getBlacksmith().dialog.confirm({
-                                        title: 'Delete Entry',
-                                        content: '<p>Delete this codex entry? This cannot be undone.</p>',
-                                        confirmLabel: 'Delete Entry',
-                                        confirmIcon: 'fa-solid fa-trash',
-                                        destructive: true
-                                    });
-                                    if (!confirmed) return;
-                                    if (hasPinId) await deleteCodexPin(uuid);
-                                    const page = await fromUuid(uuid);
-                                    if (page) await page.delete();
-                                }
-                            }
-                        ]
-                    }
-                });
-            });
-        });
-
-        // Per-entry visibility toggle (GM only): direct eye/eye-slash icon in toolbar
-        nativeHtml.querySelectorAll('.codex-entry-visibility').forEach(visBtn => {
-            const newBtn = visBtn.cloneNode(true);
-            visBtn.parentNode?.replaceChild(newBtn, visBtn);
-            newBtn.addEventListener('click', async (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (!game.user.isGM) return;
-                const uuid = newBtn.dataset.uuid;
-                if (!uuid) return;
-                const page = await fromUuid(uuid);
-                if (!page) return;
-                const current      = page.ownership?.default ?? 0;
-                const newPermission = current >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER
-                    ? CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE
-                    : CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
-                const isVisible = newPermission >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
-                // Skip the full panel re-render this ownership change would otherwise trigger
-                // (via the updateJournalEntryPage hook). A re-render collapses entries and resets
-                // scroll, forcing the GM to re-find their place. Instead we patch the icon in place.
-                await page.update({ 'ownership.default': newPermission }, { squireSkipCodexRender: true });
-                await updateCodexPinVisibility(uuid);
-                // Patch the visibility icon + sibling menu state in place.
-                newBtn.classList.toggle('visible', isVisible);
-                newBtn.setAttribute('title', isVisible ? 'Hide from Players' : 'Show to Players');
-                const menuIcon = newBtn.parentNode?.querySelector(`.codex-entry-menu[data-uuid="${uuid}"]`);
-                if (menuIcon) menuIcon.dataset.visible = String(isVisible);
-            });
-        });
-
-        // Per-entry pin button (GM only): place on scene or unplace
-        nativeHtml.querySelectorAll('.codex-entry-pin').forEach(pinBtn => {
-            const newBtn = pinBtn.cloneNode(true);
-            pinBtn.parentNode?.replaceChild(newBtn, pinBtn);
-            newBtn.addEventListener('click', async (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (!game.user.isGM) return;
-
-                const uuid         = newBtn.dataset.uuid;
-                const name         = newBtn.dataset.name;
-                const category     = newBtn.dataset.category;
-                const hasPinOnScene = newBtn.dataset.hasPinOnScene === 'true';
-
-                if (hasPinOnScene) {
-                    // Unplace from scene (keep pin data); sync hooks re-render the panel
-                    await unplaceCodexPin(uuid);
-                    await this._refreshData();
-                    this.render(this.element);
-                } else {
-                    // Enter canvas placement mode; sync hooks re-render when pin lands
-                    await beginCodexPinPlacement(uuid, name, category);
-                }
-            });
-        });
-
-        // Entry collapse/expand
-        // v13: Use nativeHtml instead of html
-        nativeHtml.querySelectorAll('.codex-entry-toggle').forEach(toggle => {
-            toggle.addEventListener('click', (e) => {
-                this._toggleEntryCollapsed(e.currentTarget.closest('.codex-entry'));
-                e.stopPropagation();
-            });
-        });
-
-        nativeHtml.querySelectorAll('.codex-entry-name').forEach(title => {
-            const newTitle = title.cloneNode(true);
-            title.parentNode?.replaceChild(newTitle, title);
-            newTitle.addEventListener('click', (e) => {
-                this._toggleEntryCollapsed(e.currentTarget.closest('.codex-entry'));
-                e.preventDefault();
-                e.stopPropagation();
-            });
-        });
-
-        // Category collapse/expand
-        // v13: Use nativeHtml instead of html
-        nativeHtml.querySelectorAll('.codex-category .fa-chevron-down').forEach(chevron => {
-            chevron.addEventListener('click', (e) => {
-                const section = e.currentTarget.closest('.codex-section');
-                if (!section) return;
-                const collapsed = section.classList.toggle('collapsed');
-                this._setCategoryCollapsed(section.dataset.category, collapsed);
-                e.stopPropagation();
-            });
-        });
-
-        nativeHtml.querySelectorAll('.codex-category h3').forEach(title => {
-            const newTitle = title.cloneNode(true);
-            title.parentNode?.replaceChild(newTitle, title);
-            newTitle.addEventListener('click', (e) => {
-                const section = e.currentTarget.closest('.codex-section');
-                if (!section) return;
-                const collapsed = section.classList.toggle('collapsed');
-                this._setCategoryCollapsed(section.dataset.category, collapsed);
-                e.preventDefault();
-                e.stopPropagation();
-            });
-        });
-
-
-        // On load, ensure all entries are visible if no filters are set
-        trackModuleTimeout(() => {
-            if (!this.filters.search && (!this.filters.tags || this.filters.tags.length === 0)) {
-                // v13: Use native DOM methods
-                nativeHtml.querySelectorAll('.codex-entry').forEach(entry => {
-                    entry.style.display = '';
-                });
-                nativeHtml.querySelectorAll('.codex-section').forEach(section => {
-                    section.style.display = '';
-                });
-            } else {
-                filterEntries();
+                ]
             }
-        }, 0);
+        });
+    }
+
+    /** @private */
+    _openTitlebarMenu(event) {
+        const blacksmith = getBlacksmith();
+        if (!blacksmith?.uiContextMenu?.show) return;
+
+        const coreItems = [{
+            name: 'Refresh Codex',
+            icon: 'fa-solid fa-sync-alt',
+            callback: async () => {
+                await this._refreshData();
+                this.render(this.element);
+                ui.notifications.info('Codex refreshed.');
+            }
+        }];
+        if (this.selectedJournal) {
+            coreItems.unshift({
+                name: 'Open Codex Journal',
+                icon: 'fa-solid fa-feather',
+                callback: () => this.selectedJournal.sheet.render(true)
+            });
+        }
+
+        const gmItems = game.user.isGM ? [
+            {
+                name: 'Select Journal for Codex',
+                icon: 'fa-solid fa-cog',
+                callback: () => showJournalPicker({
+                    title: 'Select Codex Journal',
+                    selectedId: game.settings.get(MODULE.ID, 'codexJournal'),
+                    onSelect: async journalId => { await game.settings.set(MODULE.ID, 'codexJournal', journalId); },
+                    reRender: async () => { await this._refreshData(); this.render(this.element); }
+                })
+            },
+            { name: 'Auto-Discover from Party Inventories', icon: 'fa-solid fa-search-plus', callback: () => this._autoDiscoverFromInventories() },
+            { name: 'Auto-Link Unresolved Links',           icon: 'fa-solid fa-link',        callback: () => this._autoLinkUnresolved() },
+            { name: 'Import Codex from JSON',               icon: 'fa-solid fa-file-import', callback: () => this._openImportCodexDialog() },
+            { name: 'Export Codex as JSON',                 icon: 'fa-solid fa-file-export', callback: () => this._openExportCodexDialog() }
+        ] : [];
+
+        blacksmith.uiContextMenu.show({
+            id: `${MODULE.ID}-codex-titlebar-menu`,
+            x: event.clientX,
+            y: event.clientY,
+            zones: { core: coreItems, gm: gmItems }
+        });
     }
 
 
@@ -2009,13 +1918,24 @@ export class CodexPanel {
                         if (label) entry.linksHtml.push(`<span class="codex-link-unresolved">${escapeHtml(label)}</span>`);
                         continue;
                     }
+                    const label = link.label || link.uuid;
+                    const cacheKey = `${link.uuid}|${label}`;
+                    if (_enrichedLinkCache.has(cacheKey)) {
+                        entry.linksHtml.push(_enrichedLinkCache.get(cacheKey));
+                        continue;
+                    }
                     try {
                         const TextEditor = getTextEditor();
-                        entry.linksHtml.push(await TextEditor.enrichHTML(
-                            `@UUID[${link.uuid}]{${link.label || link.uuid}}`,
+                        const enriched = await TextEditor.enrichHTML(
+                            `@UUID[${link.uuid}]{${label}}`,
                             { documents: true, links: true }
-                        ));
-                    } catch (_) {}
+                        );
+                        _enrichedLinkCache.set(cacheKey, enriched);
+                        entry.linksHtml.push(enriched);
+                    } catch (_) {
+                        // Not cached: a failure here is usually transient (the document
+                        // is mid-load), and caching it would make it permanent.
+                    }
                 }
 
                 // Related entries and location levels both point at other codex
@@ -2093,9 +2013,16 @@ export class CodexPanel {
             isTagCloudCollapsed
         };
 
-        // Deep clone to break references and ensure only primitives are passed
-        const safeTemplateData = JSON.parse(JSON.stringify(templateData));
-        const html = await renderTemplate(TEMPLATES.PANEL_CODEX, safeTemplateData);
+        // Passed straight to Handlebars. There used to be a
+        // `JSON.parse(JSON.stringify(templateData))` here to "break references and
+        // ensure only primitives are passed" — a full serialise-and-reparse of every
+        // entry, link, tag and location part on every single render.
+        //
+        // It protected nothing. Handlebars does not mutate its context, and the loop
+        // above already writes `linksHtml`, `relatedHtml`, `isExpanded` and
+        // `locationParts` onto the live entry objects in `this.data` — so if anything
+        // needed isolating, the clone came too late to provide it.
+        const html = await renderTemplate(TEMPLATES.PANEL_CODEX, templateData);
         // Preserve the scroll position across the re-render. Replacing innerHTML destroys
         // the .codex-content scroll container and recreates it at scrollTop 0, so actions
         // like placing/unplacing a pin or toggling visibility would otherwise jump the GM

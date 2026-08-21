@@ -20,11 +20,10 @@ supplies the window chrome, pins, tags and shared APIs.
 
 ## Status
 
-Early. The module scaffold is in place; Codex and Quests are moving here from
-Coffee Pub Squire, where they grew up inside a character tray that was never the
-right home for campaign content. See [`documents/TODO.md`](documents/TODO.md) for
-the inventory, and [`documents/migration-runbook.md`](documents/migration-runbook.md)
-for the migration plan.
+Early. Codex and Quests have both moved here from Coffee Pub Squire, where they
+grew up inside a character tray that was never the right home for campaign
+content. See [`documents/TODO.md`](documents/TODO.md) for what is open and what
+has landed.
 
 ## Why not Squire
 
@@ -61,26 +60,3 @@ All releases, with their changelogs, are listed on the
 
 - [Coffee Pub Blacksmith](https://github.com/Drowbe/coffee-pub-blacksmith) **13.19.0 or later** — required. Librarian uses its window framework, pins, compendium resolver, party roster, menubar, toast and dialog APIs, its global Handlebars helpers, and will not start without it.
 - Foundry VTT v13 (v14 declared as maximum).
-
-## Migrating from Coffee Pub Squire
-
-Codex and Quests used to live in Squire. If you are coming from a world that ran them there,
-**run the migration macros before updating Squire past the release that drops them** — they are
-in `macros/`, and each defaults to a dry run so you can read the report first.
-
-| Macro | What it moves |
-|---|---|
-| `migrate-quests-from-squire.js` | Quest journal setting, categories, page and per-user flags, and re-stamps quest/objective pins |
-| `migrate-codex-from-squire.js` | Codex journal setting, per-user flags, codex pins, **and re-types every codex page** from Squire's page subtype to Librarian's |
-
-Both need **both modules enabled** when they run. Two things about the codex one specifically:
-
-- It rewrites the `type` of live documents, because codex entries are a declared page subtype
-  rather than plain text pages. It updates in place so page ids survive — codex pins reference
-  their page by uuid — and backs up each page's original type and data in a flag, so setting
-  `REVERT = true` puts everything back.
-- Foundry reads `documentTypes` when the **server** loads module manifests. A browser refresh is
-  not enough after installing Librarian: return to Setup and re-enter the world, or the migration
-  will (correctly) refuse to run and tell you so.
-
-Migration is per world. A world that has not run it still has content addressed to Squire.

@@ -67,6 +67,7 @@ export const TEMPLATES = {
     TOOLTIP_PIN_QUEST_OBJECTIVE: `modules/${MODULE.ID}/templates/tooltip-pin-quests-objective.hbs`,
     PARTIAL_QUEST_ENTRY: `modules/${MODULE.ID}/templates/partials/quest-entry.hbs`,
     PANEL_CODEX: `modules/${MODULE.ID}/templates/panel-codex.hbs`,
+    PANEL_CODEX_FILTERS: `modules/${MODULE.ID}/templates/panel-codex-filters.hbs`,
     WINDOW_CODEX: `modules/${MODULE.ID}/templates/window-codex.hbs`,
     WINDOW_CAMPAIGN_BROWSER: `modules/${MODULE.ID}/templates/window-campaign-browser.hbs`,
     WINDOW_DATA_EXPORT: `modules/${MODULE.ID}/templates/window-data-export.hbs`,

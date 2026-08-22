@@ -46,7 +46,7 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **A3** | Decision | Architecture **[EXT]** | No Blacksmith API covers a panel-style entity browser | — |
 | **A4** | Decision | Architecture | Read `api-notes.md` before touching codex pins again | S |
 | **A5** | Decision | Suite | `coffee-pub-scribe` exists and is under-developed | — |
-| **A6** | Decision | Windows | Codex → Tool window; Quests → standard, master-detail. Zero Tool windows today | M |
+| **A6** | Decision | Windows | Codex done. Quests → standard base, master-detail — layout not yet designed | M |
 | **A7** | Decision | Migration | Macros vs Blacksmith's settings-adoption table | M |
 
 Deployment: [what is pending](#next--deploy-what-has-landed).
@@ -485,44 +485,36 @@ Tool shell: search and filters moving into `toolBarLeft`, and one filtering
 implementation instead of the current two (render-time filtering for tags, live DOM
 filtering for search). That is 2b, below.
 
-#### Recommendation
+#### Where this stands
 
-**Codex → Tool window, modelled on Compendium Search. Quests → stays on the
-standard base and grows into a master-detail app.**
+**The codex half is complete.** It is a Tool window on
+`BlacksmithToolWindowBaseV2`, with search and tag filters in `toolBarLeft`, results
+alone in the body, an entry count in the footer, Add Entry and the options menu as
+header actions, debounced search and a cached match haystack. That is the Compendium
+Search shape, which was the original ask.
 
-An earlier draft of this item argued the opposite — that both browsers were the same
-interaction shape and should differ only in `toolTheme` / `toolTitlebar` defaults.
-**That holds only while Quests stays a single-column list.** It does not survive the
-planned master-detail layout: quest list in a left pane, quest detail in the right.
+Still owed on the codex side: **H5**, which is what lets the Light and Glass themes
+come back on.
 
-Those are two different windows once the detail pane exists:
+**The quest half is a decision, not a task.** Quests stay on the standard base and
+grow a list-plus-detail layout — but that layout has not been designed, and it is
+gated on **A1**, because a detail pane over HTML-parsed quests would be built twice.
+
+An earlier draft of this item argued both browsers should differ only in
+`toolTheme` / `toolTitlebar` defaults. That held only while quests were a
+single-column list; it does not survive a detail pane. The two windows are:
 
 | | Codex | Quests (planned) |
 |---|---|---|
 | Layout | Single column, search-first | Two panes, list + detail |
-| Width | Palette — Compendium Search is 420 | App — needs ~900–1200 |
+| Width | Palette — Compendium Search is 420, this is 480 | App — needs ~900–1200 |
 | Canvas visible at the same time? | Yes, that's the point | No, it fills the screen |
 | Job | Look something up mid-session | Work through a quest |
 | Chrome | Tool toolbar + footer | Five zones, incl. action bar |
 
-The in-suite precedents are both in the same screenshot as the question: the
-**Artificer Crafting Station** (Recipes │ Components │ Crafting Bench │ Details,
-with per-pane search and a REFRESH / CLEAR / CRAFT action bar) and the **Messages**
-window (conversation list left, thread right). Both are multi-pane standard windows.
-Compendium Search is the other pole, and Codex belongs at it.
-
-**The fork of `CampaignBrowserWindow` is caused by the layout divergence, not by the
-base-class choice.** Once Quests has a detail pane the two stop sharing a body
-template regardless of what they extend, so "it would fork the shared class" is no
-longer an argument against. Record that here so the fork is not later blamed on the
-tool-window decision.
-
-**Sequence Codex first.** It is read-mostly; Quests carries pin placement, objective
-state writes, per-user flag mirroring and the notification trackers — and now a
-layout change on top. Note the warning from `plan-squire-tool-adoption.md`, where
-the proving-run pick was wrong: Dice Tray *looked* self-contained and turned out to
-be the one wired into Squire's lifecycle. Verify entanglement before committing; on
-a first read Codex genuinely is the lighter half.
+The in-suite precedents for the quest side are the **Artificer Crafting Station**
+(Recipes │ Components │ Bench │ Details, with a REFRESH / CLEAR / CRAFT action bar)
+and the **Messages** window (conversation list left, thread right).
 
 #### The render fix is orthogonal to the base class
 

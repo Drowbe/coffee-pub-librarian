@@ -1,0 +1,26 @@
+{{!--
+    The codex search and tag filters.
+
+    Rendered separately from the entry list so a host can put it somewhere other
+    than the top of the body. The codex browser slots it into the Tool window's
+    toolbar (`toolBarLeft`), which is where Blacksmith's own Compendium Search puts
+    its query and type controls — the toolbar is chrome, the body is results.
+
+    A host that provides no `[data-codex-filters]` slot gets this prepended to the
+    body instead, so the panel still works anywhere.
+--}}
+<div class="codex-filters">
+    <div class="codex-search">
+        <input type="search" placeholder="Search entries..." value="{{filters.search}}"
+               autocomplete="off" spellcheck="false">
+        <i class="fa-solid fa-times clear-search {{#unless filters.search}}disabled{{/unless}}" title="Clear search"></i>
+        <i class="fa-solid fa-filter toggle-tags-button {{#unless isTagCloudCollapsed}}active{{/unless}}" title="Toggle tag filters"></i>
+    </div>
+    {{#if allTags.length}}
+        <div class="codex-tag-cloud {{#if isTagCloudCollapsed}}collapsed{{/if}}">
+            {{#each allTags}}
+                <span class="codex-tag {{#if (includes ../filters.tags this)}}selected{{/if}}" data-tag="{{this}}">{{this}}</span>
+            {{/each}}
+        </div>
+    {{/if}}
+</div>

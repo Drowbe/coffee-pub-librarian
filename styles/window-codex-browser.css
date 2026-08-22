@@ -73,3 +73,43 @@
 .librarian-codex-browser-window .librarian-codex-status {
     color: var(--blacksmith-tool-text, #d8d8d8);
 }
+
+/* ===== TOOLBAR ===================================================
+   Search and tag filters, in the shell's toolbar rather than on top
+   of the list — the Compendium Search shape, where the toolbar is
+   chrome and the body is only results.
+
+   The bar is a left/right flex row by default; this window has no
+   right-hand content and its controls want the full width. */
+
+.librarian-codex-browser-window .blacksmith-window-tool-bar {
+    align-items: stretch;
+}
+
+.librarian-codex-browser-window .blacksmith-window-tool-bar-left {
+    flex: 1 1 auto;
+    min-width: 0;
+}
+
+.librarian-codex-browser-window [data-codex-filters] {
+    width: 100%;
+}
+
+/* The panel stylesheet positions .codex-filters for a body-top placement.
+   In the toolbar it owns the full width and supplies its own spacing. */
+.librarian-codex-browser-window .blacksmith-window-tool-bar .codex-filters {
+    width: 100%;
+    margin: 0;
+    padding: 2px 0;
+}
+
+.librarian-codex-browser-window .blacksmith-window-tool-bar .codex-search {
+    width: 100%;
+}
+
+/* A long tag cloud must not push the results out of the window: the toolbar
+   is chrome and should stay a predictable height, so it scrolls internally. */
+.librarian-codex-browser-window .blacksmith-window-tool-bar .codex-tag-cloud {
+    max-height: 6.5em;
+    overflow-y: auto;
+}

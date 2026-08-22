@@ -28,6 +28,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Codex search and tag filters moved into the Tool window's toolbar.** This is the shape Blacksmith's Compendium Search uses and the point of moving to the Tool shell in the first place: the toolbar is chrome, the body is nothing but results. They had been rendering at the top of the body, which left the shell's toolbar zone empty and the list pushed down by its own controls.
+
+  The mechanism is a host slot, the same idiom as the footer status: the window supplies `<div data-codex-filters>` in `toolBarLeft`, and `CodexPanel._renderFilters` paints into it — because the panel is what knows the filter state and the tag vocabulary, and the host is what knows where its chrome goes. A host offering no slot gets the filters prepended to the body, so the panel still works anywhere.
+
+  For that to work the panel's delegated listeners had to move from the panel container to the **host element**: the toolbar sits outside the container, and delegation only sees what it contains. That also means binding happens once per window rather than once per panel container.
+
+- **Codex search is debounced and no longer walks the DOM per keystroke.** Two changes, both borrowed from Compendium Search, which reports 103ms across nine compendium packs — a codex already in memory has no excuse to be slower:
+
+  - **140ms debounce**, long enough to skip a fast typist's intermediate states.
+  - **A per-entry match haystack**, computed once per render and cached on the node. Filtering previously read `entry.textContent` for every entry on every character typed, forcing a tree walk of each card across 300+ entries.
+
+  The footer count now updates off a `librarian.codexFiltered` event the panel fires after visibility changes, rather than off `input` — with the debounce in place, an `input` listener reads the DOM before filtering has run and reports a count one keystroke stale.
+
 - **The codex browser is now a Blacksmith Tool window.** It was sharing `CampaignBrowserWindow` with quests, on the standard editor base. The two stop being the same shape the moment quests grow a list-plus-detail layout, and they want different shells regardless: the codex is a lookaside you keep open beside the canvas and search mid-session, which is a palette. Blacksmith's own Compendium Search is the reference for what one looks like.
 
   What this buys: Light / Dark / Glass themes the user picks per tool, an optional micro title bar, a compact resizable frame, and a `--blacksmith-tool-*` palette so content follows the theme instead of hard-coding colours. It defaults to the dark theme for now, because `panel-codex.css` is still full of colour literals and a parchment shell would fight it. What it costs, accepted deliberately: the illustrated header, which the Tool base omits by design.

@@ -118,6 +118,13 @@ export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {
         // positioning and slide-in transform and would fight the window frame.
         return {
             appId: this.id,
+            // Search and tag filters go in the TOOLBAR, not on top of the list —
+            // the shape Blacksmith's Compendium Search uses, where the toolbar is
+            // chrome and the body is nothing but results. The slot is filled by
+            // `CodexPanel._renderFilters` during the panel's own render, because the
+            // panel is what knows the current filter state and the tag vocabulary.
+            showToolBar: true,
+            toolBarLeft: '<div data-codex-filters></div>',
             bodyContent: '<div class="librarian-panel-host librarian-codex-browser-body" data-position="left">'
                 + '<div class="panel-container" data-panel="panel-codex"></div>'
                 + '</div>',
@@ -167,7 +174,10 @@ export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {
         this._statusAbort = new AbortController();
         const { signal } = this._statusAbort;
         const refresh = () => this.updateStatus();
-        this.element.addEventListener('input', refresh, { signal });
+        // The panel fires this after it has finished changing visibility. Listening
+        // for `input` instead would read the DOM before the debounced search has run
+        // and report a count one keystroke stale.
+        this.element.addEventListener('librarian.codexFiltered', refresh, { signal });
         this.element.addEventListener('click', refresh, { signal });
     }
 

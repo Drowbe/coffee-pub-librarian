@@ -3,7 +3,7 @@ import { CodexParser } from './utility-codex-parser.js';
 import { CODEX_PAGE_TYPE } from './data/codex-page-model.js';
 import { normalizeName, buildCodexPageIndex, renderCodexRef } from './utility-codex-index.js';
 import { copyToClipboard, getNativeElement, renderTemplate, getTextEditor, escapeHtml, getPartyActors, hasPrimaryParty, showBlacksmithWait, fillCampaignPlaceholders } from './helpers.js';
-import { trackModuleTimeout, moduleDelay } from './timer-utils.js';
+import { trackModuleTimeout, clearTrackedTimeout, moduleDelay } from './timer-utils.js';
 import { showJournalPicker } from './utility-journal.js';
 import {
     resolveCodexLinks,
@@ -522,6 +522,33 @@ export class CodexPanel {
     }
 
     /**
+     * Paint the search and tag filters into the host's slot.
+     *
+     * `[data-codex-filters]` is a slot the host may provide, the same idiom as
+     * `[data-codex-status]` in the footer: the host decides where its chrome lives,
+     * the panel decides what goes in it. The codex browser puts the slot in the Tool
+     * window's `toolBarLeft`, which is where Blacksmith's Compendium Search puts its
+     * query and type controls.
+     *
+     * Falls back to prepending into the body, so a host that offers no slot — a
+     * future tray, a test harness — still gets working filters.
+     * @private
+     */
+    async _renderFilters(templateData) {
+        const root = this.element;
+        if (!root) return;
+        const html = await renderTemplate(TEMPLATES.PANEL_CODEX_FILTERS, templateData);
+
+        const slot = root.querySelector('[data-codex-filters]');
+        if (slot) {
+            slot.innerHTML = html;
+            return;
+        }
+        const container = root.querySelector('[data-panel="panel-codex"]');
+        if (container) container.insertAdjacentHTML('afterbegin', html);
+    }
+
+    /**
      * Wire the panel's interactions.
      *
      * Two passes with very different lifetimes:
@@ -586,7 +613,17 @@ export class CodexPanel {
                     return;
                 }
             }
-            const matches = !search || (entry.textContent?.toLowerCase() || '').includes(search);
+            // Match against a haystack computed once per render and cached on the
+            // node, not `entry.textContent` per keystroke. Reading textContent forces
+            // a layout-adjacent tree walk of the whole card — across 300+ entries, on
+            // every character typed. Compendium Search reports 103ms across nine
+            // compendium packs; a codex already in memory has no excuse to be slower.
+            let haystack = entry._codexHaystack;
+            if (haystack === undefined) {
+                haystack = (entry.textContent || '').toLowerCase().replace(/\s+/g, ' ');
+                entry._codexHaystack = haystack;
+            }
+            const matches = !search || haystack.includes(search);
             entry.style.display = matches ? '' : 'none';
         });
 
@@ -596,12 +633,29 @@ export class CodexPanel {
                 .some(entry => entry.style.display !== 'none');
             section.style.display = hasVisible ? '' : 'none';
         });
+        this._notifyFiltered(container);
     }
 
     /** Clear every display override, so filtering starts from a known state. @private */
     _showAll(container) {
         container.querySelectorAll('.codex-entry, .codex-section')
             .forEach(el => { el.style.display = ''; });
+        this._notifyFiltered(container);
+    }
+
+    /**
+     * Tell the host that entry visibility changed.
+     *
+     * The codex browser's footer count reads the DOM, and search is debounced — so a
+     * host listening on `input` would read the previous state and lag a keystroke
+     * behind. An explicit signal after the work is the honest fix; a longer debounce
+     * on the host side would only be a race that usually wins.
+     * @private
+     */
+    _notifyFiltered(container) {
+        (container ?? this.element)?.dispatchEvent(
+            new CustomEvent('librarian.codexFiltered', { bubbles: true })
+        );
     }
 
     /**
@@ -641,12 +695,25 @@ export class CodexPanel {
         this._filterEntries(container);
     }
 
-    /** Delegated `input`. @private */
+    /**
+     * Delegated `input`.
+     *
+     * Debounced, matching the 140ms Blacksmith's Compendium Search uses: long enough
+     * to skip a fast typist's intermediate states, short enough to feel immediate.
+     * Filtering itself is synchronous DOM work, so an unthrottled handler does it
+     * once per character.
+     * @private
+     */
     _onPanelInput(event, container) {
         const input = event.target;
         if (!input.matches?.('.codex-search input')) return;
+        clearTrackedTimeout(this._searchDebounce);
+        this._searchDebounce = trackModuleTimeout(() => this._applySearch(input, container), 140);
+    }
 
-        this.filters.search = String(input.value || '').toLowerCase();
+    /** @private */
+    _applySearch(input, container) {
+        this.filters.search = String(input.value || '').toLowerCase().trim();
         this._showAll(container);
 
         const clearButton = container.querySelector('.clear-search');
@@ -1814,8 +1881,15 @@ export class CodexPanel {
         // v13: Use native DOM innerHTML instead of jQuery html()
         codexContainer.innerHTML = html;
 
-        // Activate listeners
-        this._activateListeners(codexContainer);
+        // Filters are rendered separately so the host can place them in its own
+        // chrome — the codex browser slots them into the Tool window's toolbar,
+        // beside the title bar rather than on top of the list. A host that offers no
+        // slot gets them prepended to the body, so the panel still works anywhere.
+        await this._renderFilters(templateData);
+
+        // Bound to the HOST element, not the panel container: the toolbar sits
+        // outside the container, and delegated handlers only see what they contain.
+        this._activateListeners(this.element ?? codexContainer);
 
         // Restored last, after listeners: _activateListeners schedules a pass that
         // sets entry/section display, which changes layout and would otherwise

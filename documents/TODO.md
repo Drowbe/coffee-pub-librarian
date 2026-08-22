@@ -326,6 +326,19 @@ claiming *"Journal hooks are handled by HookManager"*
 ([`panel-codex.js:129`](../scripts/panel-codex.js#L129),
 [`panel-quest.js:735`](../scripts/panel-quest.js#L735)) which is not true either way.
 
+**A cancellation note, checked rather than assumed.** Blacksmith made HookManager
+cancellation opt-in (`canCancel: true`, top level — not inside `options`), because a
+callback whose natural return value happened to be falsy could veto a `pre*` hook
+world-wide for every module. Librarian is unaffected either way: the only raw
+`Hooks.on` registrations are the three **post** hooks in `manager-journal-routing.js`,
+where a return value is meaningless, and everything else goes through `pins.on`, which
+is Blacksmith's own event system rather than Foundry's. Every `return false` in the
+pin managers is an ordinary helper (`panToPin`, `isPinCategory`, `_hasQuestEntryInDom`),
+not a hook callback.
+
+If this item is ever resolved by moving to HookManager, that stays true — but a future
+`pre*` registration would need `canCancel` declared to have any effect.
+
 ### A3 — [EXT] No Blacksmith API covers an entity browser
 
 The codex and quest panels are ~6,000 lines of list rendering, search, tag

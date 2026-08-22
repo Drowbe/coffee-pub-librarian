@@ -1,6 +1,17 @@
 import { MODULE, WINDOWS } from './const.js';
 import { registerCampaignPanel, unregisterCampaignPanel } from './campaign-panels.js';
 import { getCodexPanel } from './codex-panel-instance.js';
+// Imported from Blacksmith's bridge, which is a real ES module and so resolves at
+// evaluation time — which is when `extends` needs it. This file used to resolve the
+// base class from `module.api` at top level and throw if it was missing. That was
+// what Blacksmith's own documentation advised, and it was wrong: `game` does not
+// exist when a module script is evaluated, and a module that throws during
+// evaluation stays dead for the rest of the session rather than being retried.
+// (Merchant took down a live world that way on 2026-08-19.) Librarian survived it
+// only by using optional chaining and by importing these files late.
+//
+// `scripts/` paths are still not the stable contract; `api/blacksmith-api.js` is.
+import { BlacksmithToolWindowBaseV2 } from '/modules/coffee-pub-blacksmith/api/blacksmith-api.js';
 
 /**
  * The codex browser, on Blacksmith's Tool window shell.
@@ -26,13 +37,6 @@ import { getCodexPanel } from './codex-panel-instance.js';
 
 function getBlacksmith() {
     return globalThis.game?.modules?.get?.('coffee-pub-blacksmith')?.api ?? null;
-}
-
-const BlacksmithToolWindowBaseV2 = getBlacksmith()?.BlacksmithToolWindowBaseV2
-    || getBlacksmith()?.getToolWindowBaseV2?.();
-
-if (!BlacksmithToolWindowBaseV2) {
-    throw new Error('Coffee Pub Librarian | BlacksmithToolWindowBaseV2 is unavailable for CodexBrowserWindow');
 }
 
 export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {

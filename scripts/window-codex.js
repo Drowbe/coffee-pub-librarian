@@ -7,14 +7,20 @@ import { getTextEditor } from './helpers.js';
 import { codexLinkKey, normalizeCodexLink } from './utility-resolver.js';
 import { buildCodexPageIndex, renderCodexRef } from './utility-codex-index.js';
 import { updateCodexPin as updateCodexPinForEntry } from './manager-codex-pins.js';
+// Imported from Blacksmith's bridge, which is a real ES module and so resolves at
+// evaluation time — which is when `extends` needs it. This file used to resolve the
+// base class from `module.api` at top level and throw if it was missing. That was
+// what Blacksmith's own documentation advised, and it was wrong: `game` does not
+// exist when a module script is evaluated, and a module that throws during
+// evaluation stays dead for the rest of the session rather than being retried.
+// (Merchant took down a live world that way on 2026-08-19.) Librarian survived it
+// only by using optional chaining and by importing these files late.
+//
+// `scripts/` paths are still not the stable contract; `api/blacksmith-api.js` is.
+import { BlacksmithWindowBaseV2 } from '/modules/coffee-pub-blacksmith/api/blacksmith-api.js';
 
 function getBlacksmith() {
     return globalThis.game?.modules?.get?.('coffee-pub-blacksmith')?.api ?? null;
-}
-
-const BlacksmithWindowBaseV2 = getBlacksmith()?.BlacksmithWindowBaseV2 || getBlacksmith()?.getWindowBaseV2?.();
-if (!BlacksmithWindowBaseV2) {
-    throw new Error('Coffee Pub Librarian | BlacksmithWindowBaseV2 is unavailable for CodexWindow');
 }
 
 export const CODEX_WINDOW_ID = `${MODULE.ID}-codex-window`;

@@ -30,6 +30,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **All five windows import their base class from Blacksmith's bridge.** Each previously resolved `BlacksmithWindowBaseV2` / `BlacksmithToolWindowBaseV2` from `module.api` at file top level and threw if it was missing — which is what Blacksmith's documentation advised, and is unsafe: `extends` is evaluated when the module script is, `game` does not exist then, and an ES module that throws during evaluation stays dead for the whole session rather than being retried. Merchant took a live world down that way on 2026-08-19.
+
+  Librarian never hit it, for two reasons worth keeping in mind rather than congratulating ourselves over: the lookup used optional chaining (`globalThis.game?.modules?.get?.(...)`), so it returned null instead of throwing, and every one of these files is dynamically imported at `ready`, by which point `game` exists. It was a private workaround to a documented-wrong instruction, and `api/blacksmith-api.js` is now the supported path — a real ES module that resolves at evaluation time.
+
 - **The codex panel follows the Tool window's theme.** Its surfaces, text tones and dividers now come from the `--blacksmith-tool-*` family instead of 45 hardcoded values, each keeping its original value as a fallback so the module still renders with Blacksmith absent. Light and Glass are offered again — `allowToolThemeToggle: false` was set precisely because they rendered a dark panel inside a parchment or frosted frame.
 
   Two families stayed literal deliberately: the brand accent (`#ff6400`, `#e2551d`, `#ff7a3c`), which is Librarian's identity rather than a surface, and the state colours used for tags, selection and category headers. **A theme may repaint a surface; it must not repaint meaning.** Canvas pin markers were untouched — they are set per pin by the Pins API and are not part of the window.

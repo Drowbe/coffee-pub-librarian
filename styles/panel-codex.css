@@ -1,3 +1,25 @@
+/* ==================================================================
+   ===== CODEX PANEL ================================================
+   ==================================================================
+
+   Surfaces, text tones and dividers are drawn from the
+   --blacksmith-tool-* custom properties, so the panel follows the
+   Light / Dark / Glass theme the user picks on its host Tool window.
+   Each carries its original value as the fallback, so the module still
+   renders if Blacksmith is absent.
+
+   Two families are deliberately NOT tokenised:
+
+   - Brand accent (#ff6400, #e2551d, #ff7a3c). Librarian's identity,
+     not a theme surface.
+   - State colours (the red / blue / yellow / rust rgba values used for
+     tags, selection, pin markers and category headers). These carry
+     meaning, and a theme must not repaint meaning.
+
+   Canvas pin markers (--codex-pin-*) are set per pin by the Pins API
+   and are not part of the window at all.
+   ================================================================== */
+
 .librarian-panel-host[data-position="left"] .panel-container[data-panel="panel-codex"] {
     overflow: hidden;
     display: flex;
@@ -9,12 +31,12 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.2));
     border-radius: 6px;
     margin-top: 8px;
     padding: 4px;
-    border: 0px solid rgba(255, 255, 255, 0.05);
-    color: #cccccc;
+    border: 0px solid var(--blacksmith-tool-divider, rgba(255, 255, 255, 0.05));
+    color: var(--blacksmith-tool-text, #cccccc);
     font-weight: 200;
     font-size: 1.0em;
 }
@@ -28,7 +50,7 @@
 }
 
 .librarian-panel-host[data-position="left"] .codex-entry-divider {
-    border-top: 1px dotted rgba(255, 255, 255, 0.1);
+    border-top: 1px dotted var(--blacksmith-tool-divider, rgba(255, 255, 255, 0.1));
     margin: 8px -8px 8px -8px;
     
 }
@@ -43,7 +65,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    color: rgba(159, 146, 117, 0.9);
+    color: var(--blacksmith-tool-text-muted, rgba(159, 146, 117, 0.9));
     justify-content: flex-end;
     gap: 6px;
 }
@@ -97,7 +119,7 @@
 
 /* Discovered By information styling */
 .librarian-panel-host[data-position="left"] .discovered-by-info {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--blacksmith-tool-surface-raised, rgba(255, 255, 255, 0.05));
     border-left: 3px solid var(--color-border-highlight, #ff6400);
     padding: 8px 12px;
     margin: 8px 0;
@@ -153,8 +175,8 @@
 
 .librarian-panel-host[data-position="left"] .codex-filters {
     padding: 10px 8px 6px 8px;
-    background: rgba(0, 0, 0, 0.4);
-    border-bottom: 0px solid rgba(255, 255, 255, 0.1);
+    background: var(--blacksmith-tool-scrim, rgba(0, 0, 0, 0.4));
+    border-bottom: 0px solid var(--blacksmith-tool-divider, rgba(255, 255, 255, 0.1));
     border-radius: 6px 6px 6px 6px;
 }
 
@@ -168,10 +190,10 @@
 
 .librarian-panel-host[data-position="left"] .codex-search input {
     flex: 1;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(0, 0, 0, 0.6);
+    background: var(--blacksmith-tool-surface-hover, rgba(255, 255, 255, 0.1));
+    border: 1px solid var(--blacksmith-tool-field-border, rgba(0, 0, 0, 0.6));
     border-radius: 3px;
-    color: #fff;
+    color: var(--blacksmith-tool-text, #fff);
     padding: 4px 28px 4px 8px;
     height: 28px;
 }
@@ -184,8 +206,8 @@
     cursor: pointer;
     opacity: 0.7;
     transition: all 0.2s ease;
-    color: #fff;
-    background: rgba(0, 0, 0, 0.3);
+    color: var(--blacksmith-tool-text, #fff);
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.3));
     padding: 4px;
     border-radius: 50%;
     font-size: 10px;
@@ -208,7 +230,7 @@
 .librarian-panel-host[data-position="left"] .codex-search .toggle-tags-button {
     cursor: pointer;
     transition: opacity 0.2s;
-    color: rgba(159, 146, 117, 0.9);
+    color: var(--blacksmith-tool-text-muted, rgba(159, 146, 117, 0.9));
     opacity: 0.4;
     display: flex;
     align-items: center;
@@ -217,12 +239,12 @@
 
 .librarian-panel-host[data-position="left"] .codex-search .clear-search:hover {
     opacity: 1;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--blacksmith-tool-text, rgba(255, 255, 255, 0.9));
     background: rgba(185, 84, 61, 0.9);
 }
 
 .librarian-panel-host[data-position="left"] .codex-search .toggle-tags-button.active {
-    color: rgba(159, 146, 117, 0.9);
+    color: var(--blacksmith-tool-text-muted, rgba(159, 146, 117, 0.9));
     opacity: 1;
 }
 .librarian-panel-host[data-position="left"] .codex-search .toggle-tags-button.active:hover,
@@ -232,10 +254,10 @@
 }
 .librarian-panel-host[data-position="left"] .codex-tag-filter select {
     width: 100%;
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.3));
+    border: 1px solid var(--blacksmith-tool-field-border, rgba(255, 255, 255, 0.2));
     border-radius: 3px;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--blacksmith-tool-text, rgba(255, 255, 255, 0.9));
     padding: 4px;
 }
 
@@ -251,7 +273,7 @@
     background: rgba(115, 51, 36, 0.8);
     padding: 6px 8px;
     border-radius: 4px;
-    border: 1px solid rgba(0, 0, 0, 0.1);
+    border: 1px solid var(--blacksmith-tool-divider, rgba(0, 0, 0, 0.1));
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -263,7 +285,7 @@
     flex: 1;
     align-items: center;
     min-width: 0;
-    color: rgba(186, 168, 137, 0.8);
+    color: var(--blacksmith-tool-text-muted, rgba(186, 168, 137, 0.8));
     margin: 0;
     border: none;
     font-family: inherit; 
@@ -273,7 +295,7 @@
     cursor: pointer;
 }
 .librarian-panel-host[data-position="left"] .codex-category h3 i {
-    color: rgba(186, 168, 137, 0.9);
+    color: var(--blacksmith-tool-text-muted, rgba(186, 168, 137, 0.9));
     font-size: .85em;
     margin-right: 4px;
     width: 14px;
@@ -285,7 +307,7 @@
     align-self: center;
     margin-left: auto;
     padding-right: 8px;
-    color: rgba(186, 168, 137, 0.5);
+    color: var(--blacksmith-tool-text-muted, rgba(186, 168, 137, 0.5));
     font-weight: 400;
     font-size: 0.65em;
     text-transform: uppercase;
@@ -303,8 +325,8 @@
 }
 
 .librarian-panel-host[data-position="left"] .codex-entry {
-    background: rgba(0, 0, 0, 0.3);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.3));
+    border: 1px solid var(--blacksmith-tool-divider, rgba(255, 255, 255, 0.1));
     border-radius: 4px;
     margin-bottom: 4px;
     padding: 8px;
@@ -332,7 +354,7 @@
     flex: 1 1 auto;
     text-align: left;
     font-weight: 500;
-    color: rgba(159, 146, 117, 0.9);
+    color: var(--blacksmith-tool-text-muted, rgba(159, 146, 117, 0.9));
     font-size: 1.0em;
     white-space: nowrap;
     overflow: hidden;
@@ -355,21 +377,21 @@
     height: auto;
     display: block;
     border-radius: 4px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid var(--blacksmith-tool-field-border, rgba(255, 255, 255, 0.2));
     cursor: pointer;
     transition: opacity 0.2s ease, border-color 0.2s ease;
 }
 
 .librarian-panel-host[data-position="left"] .codex-entry-image img:hover {
     opacity: 0.92;
-    border-color: rgba(255, 255, 255, 0.4);
+    border-color: var(--blacksmith-tool-field-focus-border, rgba(255, 255, 255, 0.4));
 }
 
 
 
 .codex-entry-label {
-    color: rgba(159, 146, 117, 0.9);
-    background-color: rgba(159, 146, 117, 0.15);
+    color: var(--blacksmith-tool-text-muted, rgba(159, 146, 117, 0.9));
+    background-color: var(--blacksmith-tool-surface-hover, rgba(159, 146, 117, 0.15));
     font-size: 0.8em;
     text-transform: uppercase;
     padding: 2px 4px 2px 4px;
@@ -526,7 +548,7 @@
 }
 
 .librarian-panel-host[data-position="left"] .codex-entry-plothook {
-    color: #aaa;
+    color: var(--blacksmith-tool-text-muted, #aaa);
     margin-bottom: 8px;
     background: rgba(128, 127, 112, 0.3);
     border-radius: 4px;
@@ -537,7 +559,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
-    border-top: 1px dotted rgba(255, 255, 255, 0.2);
+    border-top: 1px dotted var(--blacksmith-tool-divider, rgba(255, 255, 255, 0.2));
     padding-top: 8px;
 }
 
@@ -551,7 +573,7 @@
     gap: 2px;
     max-height: 100px;
     overflow-y: auto;
-    background: rgba(0, 0, 0, 0.2);
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.2));
     border-radius: 4px;
     transition: all 0.2s ease-out;
 }
@@ -570,7 +592,7 @@
     border-radius: 4px;
     padding: 2px 4px;
     font-size: 0.65em;
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--blacksmith-tool-text, rgba(255, 255, 255, 0.9));
     cursor: pointer;
     transition: all 0.2s ease;
     text-transform: uppercase;
@@ -584,7 +606,7 @@
 .librarian-panel-host[data-position="left"] .codex-tag.selected {
     background: rgba(50, 100, 150, 0.4);
     border-color: rgba(50, 100, 150, 0.0);
-    color: rgba(255, 255, 255, 0.9);
+    color: var(--blacksmith-tool-text, rgba(255, 255, 255, 0.9));
 }
 .librarian-panel-host[data-position="left"] .codex-tag.selected:hover {
     background: rgba(50, 100, 150, 0.7);
@@ -696,8 +718,8 @@
     text-transform: uppercase;
     padding: 2px 6px;
     border-radius: 3px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(155, 142, 114, 0.4);
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.25));
+    border: 1px solid var(--blacksmith-tool-divider, rgba(155, 142, 114, 0.4));
 }
 
 .librarian-codex-page-fields .codex-page-divider {
@@ -716,8 +738,8 @@
     gap: 8px;
     padding: 6px 10px;
     margin: 12px 0 10px 0;
-    background: rgba(44, 44, 44, 0.9);
-    border: 1px solid rgba(0, 0, 0, 0.35);
+    background: var(--blacksmith-tool-surface-raised, rgba(44, 44, 44, 0.9));
+    border: 1px solid var(--blacksmith-tool-divider, rgba(0, 0, 0, 0.35));
     border-radius: 4px;
     font-weight: 700;
     text-transform: uppercase;
@@ -761,8 +783,8 @@
     width: 100%;
     padding: 5px 8px;
     border-radius: 4px;
-    border: 1px solid rgba(44, 44, 44, 0.95);
-    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--blacksmith-tool-divider, rgba(44, 44, 44, 0.95));
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.15));
     line-height: 1.35;
 }
 
@@ -786,9 +808,9 @@
     align-items: center;
     gap: 6px;
     padding: 8px 10px;
-    border: 1px dashed rgba(155, 142, 114, 0.45);
+    border: 1px dashed var(--blacksmith-tool-divider, rgba(155, 142, 114, 0.45));
     border-radius: 6px;
-    background: rgba(0, 0, 0, 0.12);
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.12));
     transition: border-color 0.2s ease, background 0.2s ease;
 }
 
@@ -804,8 +826,8 @@
     max-width: 100%;
     padding: 3px 8px;
     border-radius: 4px;
-    background: rgba(0, 0, 0, 0.25);
-    border: 1px solid rgba(155, 142, 114, 0.4);
+    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.25));
+    border: 1px solid var(--blacksmith-tool-divider, rgba(155, 142, 114, 0.4));
     font-size: 0.85em;
 }
 

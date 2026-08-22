@@ -31,11 +31,12 @@ The window owns its chrome: the title bar carries Add Entry and the codex option
 menu as Tool header actions, and the footer carries an entry count and a status slot
 the panel writes progress into. The panel renders no title row of its own.
 
-**Theming.** The Tool shell supports Light / Dark / Glass. Librarian pins it to Dark
-and sets `allowToolThemeToggle: false`, because `panel-codex.css` still carries
-hardcoded colours rather than `--blacksmith-tool-*` variables — the other two themes
-would render a dark panel inside a parchment or frosted frame. TODO **H5** is what
-lifts that restriction.
+**Theming.** The Tool shell supports Light / Dark / Glass, offered in its controls
+menu and remembered per tool. Dark is the initial choice because it is what the codex
+has always looked like. `panel-codex.css` draws its surfaces, text tones and dividers
+from the `--blacksmith-tool-*` family so the panel follows whichever the user picks;
+the brand accent and the state colours stay literal, because a theme may repaint a
+surface but must not repaint meaning.
 
 ## Project Files
 

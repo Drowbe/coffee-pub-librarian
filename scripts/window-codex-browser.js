@@ -58,15 +58,13 @@ export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {
             position: { width: 480, height: 820 },
             window: { title: 'Codex', resizable: true, minimizable: true, icon: 'fa-solid fa-book' },
             windowSizeConstraints: { minWidth: 360, minHeight: 320 },
-            // Dark only, for now. The Tool shell supports Light / Glass and offers
-            // them in its controls menu by default — but `panel-codex.css` carries 93
-            // hardcoded colours and no `--blacksmith-tool-*` variables, so picking
-            // either gives a dark panel inside a parchment or frosted frame. Offering
-            // a menu option that visibly breaks the window is worse than not offering
-            // it. Re-enable this the moment TODO **H5** converts the panel stylesheet;
-            // it is a one-line change and the themes then work for free.
+            // Dark is the initial theme because it is what the codex has always
+            // looked like; Light and Glass are now offered too. `panel-codex.css`
+            // draws its surfaces, text tones and dividers from the
+            // `--blacksmith-tool-*` family, so the panel follows whichever the user
+            // picks. Brand accent and state colours stay literal on purpose — a
+            // theme may repaint a surface, but not meaning.
             toolTheme: 'dark',
-            allowToolThemeToggle: false,
             rememberPosition: true,
             // Unchanged from the CampaignBrowserWindow era on purpose: position,
             // title-bar mode and theme all hang off this key, so renaming it silently
@@ -124,7 +122,11 @@ export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {
             // `CodexPanel._renderFilters` during the panel's own render, because the
             // panel is what knows the current filter state and the tag vocabulary.
             showToolBar: true,
-            toolBarLeft: '<div data-codex-filters></div>',
+            // Carries `librarian-panel-host` + `data-position="left"` for the same
+            // reason the body wrapper does: every rule in panel-codex.css is scoped
+            // to it. Without it the filters render as unstyled wrapping text — the
+            // tag cloud in particular becomes a wall of words that overflows the bar.
+            toolBarLeft: '<div class="librarian-panel-host" data-position="left" data-codex-filters></div>',
             bodyContent: '<div class="librarian-panel-host librarian-codex-browser-body" data-position="left">'
                 + '<div class="panel-container" data-panel="panel-codex"></div>'
                 + '</div>',

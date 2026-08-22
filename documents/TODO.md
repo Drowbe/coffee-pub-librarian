@@ -34,7 +34,6 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | ID | Sev | Area | Item | Size |
 |---|---|---|---|---|
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
-| **H5** | High | Blacksmith API | 93 hardcoded colours in `panel-codex.css`; Tool themes disabled until converted | M |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — now shipped; drops ~600 duplicated lines | M |
 | **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
@@ -81,6 +80,7 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 | **M3** | Quest pin visibility edits were a silent no-op, as codex had been | *Editing a quest pin's visibility now warns instead of silently doing nothing* |
 | **M6** | Editor-created entries inherited journal ownership; import set NONE | *New codex entries start hidden, matching the import path* |
 | **M9** | `squireSkipCodexRender` outlived its module | *Renamed to `librarianSkipCodexRender`* |
+| **H5** | 45 theme-sensitive colour literals in `panel-codex.css`; Tool themes disabled | *The codex panel follows the Tool window's theme* |
 | **L3** | Doc paths after the `documents/` reorganisation | *Verified — no stale flat paths remain* |
 | **L4** | CHANGELOG 13.0.0 omitted link resolution, Auto-Link and `related` | *Recorded retroactively under 13.0.0* |
 | **L5** | No link-resolution fixture | *`testing/fixture-link-resolution.json` + `testing/README.md`* |
@@ -161,77 +161,6 @@ shaking out bugs, and note two documented traps up front: pass the context
 you get a silent empty div), and `TagWidget.activate()` is the entire event layer —
 without it the widget renders inert. Filter mode is documented as **not
 implemented**; do not use it.
-
-### H5 — CSS ignores the design system
-
-`styles/` contains raw colour literals almost everywhere and only a handful of
-`var(--blacksmith-*)` references. `design-tokens.md` states the rule directly:
-*"new CSS references tokens rather than repeating literal values."*
-
-**This stopped being hygiene and became functional.** The codex browser is a Tool
-window now, and the Tool shell offers Light / Dark / Glass in its controls menu —
-but `panel-codex.css` carries **93 hardcoded colours** (17 hex, 76 `rgba()`) and no
-tool variables, so Light and Glass render a dark panel inside a parchment or frosted
-frame. `allowToolThemeToggle: false` is set on `window-codex-browser.js` for exactly
-that reason; converting the panel stylesheet is what lets it come back off, and that
-is a one-line change once this lands.
-
-Do the codex half first — it is the half with a broken feature waiting on it.
-
-`window-import-export.css` additionally carries 25 `!important` declarations,
-inherited from the Squire copy.
-
-**Fix:** convert to the token scale (`--blacksmith-space-*`, and the
-`--blacksmith-tool-*` family for anything inside the Tool shell), always with a
-literal fallback so the module degrades if Blacksmith is disabled. Blacksmith's
-`styles/window-compendium-search.css` is the worked example: zero colour literals,
-five variables, follows all three themes with no theme-specific rules of its own.
-Read `design-system/design-extending.md` first.
-
-#### Inventory — `panel-codex.css`, most-used first
-
-Generated so the work is mechanical rather than exploratory. "Appears as" is the CSS
-property each literal is used in, which is what decides the token.
-
-| Literal | Uses | Appears as | Likely token |
-|---|---|---|---|
-| `#ff6400` | 9 | colorx7, border-leftx2 | brand accent — **keep literal** |
-| `rgba(159, 146, 117, 0.9)` | 5 | colorx5 | `--blacksmith-tool-text` / `-text-muted` |
-| `rgba(255, 255, 255, 0.1)` | 4 | border-topx1, border-bottomx1, backgroundx1 | `--blacksmith-tool-divider` / `-field-border` |
-| `rgba(255, 255, 255, 0.9)` | 4 | colorx4 | `--blacksmith-tool-text` / `-text-muted` |
-| `rgba(0, 0, 0, 0.3)` | 3 | backgroundx3 | `--blacksmith-tool-surface-*` |
-| `rgba(255, 255, 255, 0.2)` | 3 | borderx2, border-topx1 | `--blacksmith-tool-divider` / `-field-border` |
-| `rgba(244, 221, 104, 0.2)` | 3 | ?x2, borderx1 | semantic/state — **keep literal** |
-| `rgba(0, 0, 0, 0.2)` | 2 | backgroundx2 | `--blacksmith-tool-surface-*` |
-| `rgba(255, 255, 255, 0.05)` | 2 | borderx1, backgroundx1 | `--blacksmith-tool-divider` / `-field-border` |
-| `rgba(0, 0, 0, 0.4)` | 2 | backgroundx1, box-shadowx1 | shadow — keep or tune per theme |
-| `#fff` | 2 | colorx2 | `--blacksmith-tool-text` / `-text-muted` |
-| `rgba(185, 84, 61, 0.9)` | 2 | backgroundx1, colorx1 | semantic/state — **keep literal** |
-| `#e2551d` | 2 | colorx2 | brand accent — **keep literal** |
-| `#ff7a3c` | 2 | colorx2 | brand accent — **keep literal** |
-| `rgba(255, 100, 0, 0.08)` | 2 | backgroundx2 | `--blacksmith-tool-surface-*` |
-| `rgba(255, 47, 47, 0.0)` | 2 | border-colorx2 | semantic/state — **keep literal** |
-| `rgba(244, 221, 104, 0)` | 2 | ?x2 | semantic/state — **keep literal** |
-
-#### The trap this inventory exposes
-
-**The same literal is used in different roles.** `rgba(255, 255, 255, 0.1)` is a
-`border-top`, a `border-bottom` **and** a `background`; `rgba(0, 0, 0, 0.4)` is a
-`background` and a `box-shadow`. A global find-and-replace would map all of them to
-one token and quietly conflate a divider with a surface — wrong in a way that only
-shows up visually, under a theme nobody is looking at.
-
-So this is **per-occurrence**, not per-value. Roughly a third of the literals should
-not move at all: `#ff6400` / `#e2551d` / `#ff7a3c` are Librarian's brand accent, and
-the red / blue / yellow `rgba()` values are state colours, neither of which is
-theme-dependent.
-
-#### Do it with the window open
-
-The reason this was not done unattended: correctness here is *visual*. Convert, then
-check all three themes with a real codex loaded — Glass is the one that exposes
-mistakes, because a surface that should be translucent and a divider that should not
-look identical under Light and Dark.
 
 ### H6 — Adopt `api.importer`
 

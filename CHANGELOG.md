@@ -21,12 +21,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The codex filters rendered unstyled in the toolbar.** Every rule in `panel-codex.css` is scoped to `.librarian-panel-host[data-position="left"]`, and the toolbar slot was not inside it — so moving search and tags there stripped their styling. The tag cloud in particular became a wall of plain wrapping text that overflowed the bar. The slot now carries the same host class the body wrapper does. A `max-height` this stylesheet had put on the tag cloud also out-specified `panel-codex.css`'s `.collapsed { max-height: 0 }`, leaving the cloud stuck open; that override is gone.
+
 - **The Blacksmith window registry could not open either browser.** `registerCampaignBrowserWindows` registered an opener calling `openQuestBrowser`, which stopped existing in 13.0.0 when the file was renamed and the function became `openCampaignBrowser` — so `blacksmith.openWindow('coffee-pub-librarian-quest-browser')` threw a `ReferenceError`. Nothing caught it because the menubar tools reach `module.api.openCampaignBrowser` directly and never route through the registry.
 - **Copy Template in the codex importer copied an error message.** `prompts/prompt-codex.txt` was never shipped — only the quest prompt came across from Squire. The fetch failed, the template variable was set to the literal string `Failed to load prompt-codex.txt.`, and the button put that on the GM's clipboard under a "Template copied to clipboard!" toast. The prompt now ships, a failed load leaves the template empty and reports to the console, and the button refuses rather than copying its own error. The same latent defect in the quest importer is fixed too, along with a duplicate success toast that fired even when the copy had failed.
 - **Codex, quest and export windows fought over one saved position.** Each mints a per-instance id so several can be open at once, but left `rememberPosition` on. `windowPositionKey` falls back to the class name, so siblings shared a single key and each new window opened on top of the last one the user had moved. They no longer persist position; the browsers, which set a per-kind key, are unaffected.
 - **Squire named in three user-facing places**: the codex pin visibility warning told the GM to use "the Squire codex tray", the campaign browser's startup error was prefixed `Coffee Pub Squire |`, and the codex page summary placeholder referred to "the Squire tray".
 
 ### Changed
+
+- **The codex panel follows the Tool window's theme.** Its surfaces, text tones and dividers now come from the `--blacksmith-tool-*` family instead of 45 hardcoded values, each keeping its original value as a fallback so the module still renders with Blacksmith absent. Light and Glass are offered again — `allowToolThemeToggle: false` was set precisely because they rendered a dark panel inside a parchment or frosted frame.
+
+  Two families stayed literal deliberately: the brand accent (`#ff6400`, `#e2551d`, `#ff7a3c`), which is Librarian's identity rather than a surface, and the state colours used for tags, selection and category headers. **A theme may repaint a surface; it must not repaint meaning.** Canvas pin markers were untouched — they are set per pin by the Pins API and are not part of the window.
 
 - **Codex search and tag filters moved into the Tool window's toolbar.** This is the shape Blacksmith's Compendium Search uses and the point of moving to the Tool shell in the first place: the toolbar is chrome, the body is nothing but results. They had been rendering at the top of the body, which left the shell's toolbar zone empty and the list pushed down by its own controls.
 
@@ -43,7 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The codex browser is now a Blacksmith Tool window.** It was sharing `CampaignBrowserWindow` with quests, on the standard editor base. The two stop being the same shape the moment quests grow a list-plus-detail layout, and they want different shells regardless: the codex is a lookaside you keep open beside the canvas and search mid-session, which is a palette. Blacksmith's own Compendium Search is the reference for what one looks like.
 
-  What this buys: Light / Dark / Glass themes the user picks per tool, an optional micro title bar, a compact resizable frame, and a `--blacksmith-tool-*` palette so content follows the theme instead of hard-coding colours. It defaults to the dark theme for now, because `panel-codex.css` is still full of colour literals and a parchment shell would fight it. What it costs, accepted deliberately: the illustrated header, which the Tool base omits by design.
+  What this buys: Light / Dark / Glass themes the user picks per tool, an optional micro title bar, a compact resizable frame, and a `--blacksmith-tool-*` palette so content follows the theme instead of hard-coding colours. What it costs, accepted deliberately: the illustrated header, which the Tool base omits by design.
 
   The window id and `windowPositionKey` are unchanged, so saved position, title-bar mode and theme survive the move. `CampaignBrowserWindow` now hosts quests only; `openCampaignBrowser('codex')` routes to the new window, so the menubar tool, the module API and `revealCampaignPanel` are all unaffected.
 

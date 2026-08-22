@@ -107,9 +107,7 @@
     width: 100%;
 }
 
-/* A long tag cloud must not push the results out of the window: the toolbar
-   is chrome and should stay a predictable height, so it scrolls internally. */
-.librarian-codex-browser-window .blacksmith-window-tool-bar .codex-tag-cloud {
-    max-height: 6.5em;
-    overflow-y: auto;
-}
+/* Deliberately NO max-height override here. panel-codex.css already caps the tag
+   cloud at 100px with its own scroller, and drives the filter toggle by animating
+   `.collapsed { max-height: 0 }`. A height set from this file is more specific than
+   that rule and silently wins, leaving the cloud stuck open. */

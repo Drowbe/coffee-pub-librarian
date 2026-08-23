@@ -1,0 +1,111 @@
+{
+  "kind": "coffee-pub-librarian.quest",
+  "exportVersion": "1.1",
+  "timestamp": "2026-08-23T00:00:00.000Z",
+  "metadata": {
+    "totalQuests": 3,
+    "totalScenesWithPins": 2,
+    "totalPins": 4
+  },
+  "quests": [
+    {
+      "name": "FIXTURE Envelope Quest A",
+      "img": null,
+      "category": "Main Quest",
+      "description": "Imports cleanly. Its scene pin (scene 1, pin 1) must be placed.",
+      "plotHook": "The party is asked to recover the Wayfinder casing.",
+      "location": "Faerûn > Moonsea > Phlan",
+      "tasks": [
+        { "text": "Find the casing", "state": "active" },
+        { "text": "Return it to Mira Vex", "state": "hidden" }
+      ],
+      "reward": { "xp": 450, "treasure": [{ "name": "Arcanic Wayfinder Part 2: Casing" }] },
+      "timeframe": { "duration": "Before the next new moon" },
+      "status": "Not Started",
+      "tags": ["fixture", "envelope"],
+      "visible": false
+    },
+    {
+      "name": "",
+      "img": null,
+      "category": "Side Quest",
+      "description": "THE FAILING ENTRY. Its `name` is empty, which is the one condition our importer rejects outright (`if (!quest.name) continue;`, panel-quest.js). Nothing is created for it, so the scene-2 pin below references a quest that will not exist. That pin must surface as a warning in the result envelope, not a console line.",
+      "plotHook": "",
+      "location": "",
+      "tasks": [{ "text": "Never created", "state": "active" }],
+      "reward": { "xp": 0, "treasure": [] },
+      "timeframe": { "duration": "" },
+      "status": "Not Started",
+      "tags": ["fixture", "envelope", "expected-failure"],
+      "visible": false
+    },
+    {
+      "name": "FIXTURE Envelope Quest C",
+      "img": null,
+      "category": "Side Quest",
+      "description": "Imports cleanly. Carries an OBJECTIVE pin (scene 1, pin 2) as well as a quest pin, so both pin kinds are exercised.",
+      "plotHook": "A rumour about the Black Fist.",
+      "location": "Faerûn > Moonsea > Phlan",
+      "tasks": [
+        { "text": "Ask around the Laughing Goblin", "state": "active" },
+        { "text": "Follow the quartermaster", "state": "active" }
+      ],
+      "reward": { "xp": 200, "treasure": [] },
+      "timeframe": { "duration": "" },
+      "status": "In Progress",
+      "tags": ["fixture", "envelope"],
+      "visible": true
+    }
+  ],
+  "scenePins": {
+    "SCENEIDPHLANDOCKS01": {
+      "sceneName": "FIXTURE Phlan Docks",
+      "sceneId": "SCENEIDPHLANDOCKS01",
+      "questPins": [
+        {
+          "questUuid": "JournalEntry.FIXTUREQUESTJRNL.JournalEntryPage.FIXTUREQUESTA01",
+          "questIndex": 1,
+          "questCategory": "Main Quest",
+          "x": 1450,
+          "y": 980,
+          "pinType": "quest"
+        },
+        {
+          "questUuid": "JournalEntry.FIXTUREQUESTJRNL.JournalEntryPage.FIXTUREQUESTC03",
+          "questIndex": 3,
+          "questCategory": "Side Quest",
+          "objectiveIndex": 0,
+          "objectiveState": "active",
+          "objectiveText": "Ask around the Laughing Goblin",
+          "x": 2100,
+          "y": 1240,
+          "pinType": "objective"
+        }
+      ]
+    },
+    "SCENEIDVALJEVOCASTLE1": {
+      "sceneName": "FIXTURE Valjevo Castle",
+      "sceneId": "SCENEIDVALJEVOCASTLE1",
+      "questPins": [
+        {
+          "questUuid": "JournalEntry.FIXTUREQUESTJRNL.JournalEntryPage.FIXTUREQUESTB02",
+          "questIndex": 2,
+          "questCategory": "Side Quest",
+          "x": 640,
+          "y": 410,
+          "pinType": "quest",
+          "_fixtureNote": "ORPHANED BY DESIGN. Points at the empty-name quest above, which is never created. This is the case the design is for: the pin cannot be placed and the reason must reach the result envelope."
+        },
+        {
+          "questUuid": "JournalEntry.FIXTUREQUESTJRNL.JournalEntryPage.FIXTUREMISSING99",
+          "questIndex": 9,
+          "questCategory": "Side Quest",
+          "x": 700,
+          "y": 455,
+          "pinType": "quest",
+          "_fixtureNote": "ORPHANED BY DESIGN, second flavour. References a quest that is not in this payload at all — a stale pin from a partial export — rather than one that failed. Both should warn; whether they warn identically is your call."
+        }
+      ]
+    }
+  }
+}

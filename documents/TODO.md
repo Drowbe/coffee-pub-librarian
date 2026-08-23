@@ -33,8 +33,9 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 
 | ID | Sev | Area | Item | Size |
 |---|---|---|---|---|
+| **C4** | Critical | Quests | Quest export writes an empty `scenePins`; pin placement is lost | M |
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
-| **H6** | High | Blacksmith API | Adopt `api.importer` — now shipped; drops ~600 duplicated lines | M |
+| **H6** | High | Blacksmith API | Adopt `api.importer` via `extendsKind` — **blocked on Blacksmith's branch** | M |
 | **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **L1** | Low | v14 | Bare `FilePicker` and `saveDataToFile` globals | S |
@@ -96,7 +97,9 @@ discussion, and the **move of the export/subtype hazard** into
 
 ## Next — deploy what has landed
 
-Everything above is in the working tree and none of it is in production yet.
+**Shipped as 13.0.2.** The smoke list below is kept as the regression checklist for
+the codex browser, not as pending release work; the items above it that remain open
+are tracked in [At a glance](#at-a-glance).
 
 - [ ] Confirm production is on **Blacksmith 13.19.0** before pushing Librarian —
       the manifest minimum was raised to match what the code now uses.
@@ -120,6 +123,54 @@ Everything above is in the working tree and none of it is in production yet.
       - **Export Codex** reports `N of N`.
       - **Theme**: the tool context menu offers Light / Dark / Glass and the choice
         survives a reopen.
+
+---
+
+## Critical
+
+### C4 — The quest export's `scenePins` reads a flag nothing writes
+
+`_exportScenePins` ([`panel-quest.js:4028`](../scripts/panel-quest.js#L4028)) builds the
+export's `scenePins` block from `scene.getFlag(MODULE.ID, 'questPins')`. Quest pins no
+longer live there. They moved to Blacksmith's Pins API, and current code enumerates
+them with `listAllQuestPins(pins, { sceneId })` — the legacy scene flag's **only**
+writer left in the module is `_importScenePins` itself
+([`panel-quest.js:4090`](../scripts/panel-quest.js#L4090)).
+
+So in any world whose pins were placed after the Pins API migration, the export emits
+`"scenePins": {}` and the envelope carries nothing. The quest count, the file, and the
+success toast all look right — the summary even reports `Scenes with Pins: 0` rather
+than erroring.
+
+**This is the same failure class as M11**, the codex partial export: a backup that
+looks complete, is not, and is only discovered on restore. M11 was fixed by counting
+what was gathered against what exists and refusing on a mismatch. This wants the same
+treatment, and the guard is cheap because the Pins API can be asked how many quest
+pins a scene actually has.
+
+Two parts, and the first is not optional:
+
+- **Read through the Pins API**, not the flag. `listAllQuestPins` + `isQuestOrObjectivePin`
+  are already imported in this file for the bulk-clear path, so the enumeration exists.
+- **Then refuse a partial**, matching `_openExportCodexDialog`: if the API reports pins
+  the export did not gather, say so rather than writing the file.
+
+**Round-trip consequence.** Pins API records carry more than the legacy flag did — pin
+design, ownership, `blacksmithVisibility`. `_importScenePins` and `_mergePinData` match
+on `questUuid` + `objectiveIndex` and will keep working, but the import half should be
+read alongside the fix rather than assumed compatible; a richer record written back into
+the old flag shape would quietly drop everything the flag has no room for.
+
+**Do not let this block the Blacksmith importer work.** It was reported to Blacksmith
+during the `api.importer` discussion — it came up because `scenePins` was the example
+justifying their envelope `context`, and they were told explicitly not to generalize
+that API around it while it carries no data. Filed here so the two stay separate: this
+is a Librarian bug that predates the importer conversation and is fixable now, without
+waiting on their branch.
+
+`testing/fixture-import-quest-envelope.json` is a hand-built envelope in the format the
+exporter and importer agree on — reconstructed, not captured, precisely because a live
+world cannot currently produce one. It is the regression fixture for this item.
 
 ---
 
@@ -190,10 +241,48 @@ warnings, prompt-template copying. Written twice and already diverging.
 `api.compendiums`, `mergeCodexLinks`, retyping legacy text pages to our subtype, and
 page sorting.
 
-Three notes for whoever picks this up:
+**Blocked, and the plan changed. Do not build against today's `api-importer.md`.**
 
-- **Set `showInSwitcher: false`** unless we actually want Codex and Quests appearing
-  in the GM's item-directory importer dropdown. Default is `true`.
+The original plan here was a standalone kind with `showInSwitcher: false`. That was
+wrong: it would have put codex and quests in *neither* dropdown — reachable only from
+our own panel menus — which is a shared engine with no shared entry point. A GM
+importing codex entries is importing journal content and should find it where journal
+content lives.
+
+Blacksmith accepted a **contribution model** instead (agreed August 2026):
+
+- A descriptor declares `extendsKind: 'journal'` and contributes its own
+  `templateOptions`, prompt builders and callbacks into the host kind.
+- **Dispatch is a predicate over the raw entry, not `onProfileName`.** A label cannot
+  say "not mine". Our predicates, and the trap in them: `description` is **not** a
+  discriminator — it is the quest's body field *and* the legacy codex name for
+  `summary`. Key quests on `tasks` / `status` / `reward`; key codex on
+  `summary` / `related` / `expandedDetails` plus `!Array.isArray(entry.tasks)`.
+- **The callback contract is changing.** `onValidateEntry` will return the converted
+  data and `onImportEntry` will receive it, instead of both re-parsing. Build against
+  that. Today's doc already tells you to return converted data; the registry discards
+  it.
+- **Envelopes are claimed before per-entry dispatch.** Quest exports are
+  `{ quests, scenePins, exportVersion }`, not a bare array — `parsePayload` would
+  otherwise treat the whole file as one entry. A claim returns `{ entries, context }`,
+  and `context` reaches `onImportEntry` and `onImportComplete`.
+- `onImportStart` / `onImportComplete` are being added, which is where our
+  `isImporting` flag and a batch-level resolution cache go. Import progress gains an
+  elapsed-time throttle (100–150ms).
+- An envelope-level `kind` field is **diagnostic only, never dispatch**, so a
+  hand-authored payload without it is never second-class.
+
+**Already done on our side:** the per-entry codex import is extracted into
+[`scripts/import-codex.js`](../scripts/import-codex.js), shaped to
+`onValidateEntry` / `onImportEntry`. Adoption should be a wiring change, not a rewrite.
+Quests still need the same extraction; `_importQuestsFromData` is batch-level and has
+to go per-entry.
+
+Fixtures for the integration are in `testing/`: `fixture-import-orphan.json` (payloads
+matching neither predicate, including the `description` trap) and
+`fixture-import-quest-envelope.json` (an envelope with orphaned pins — see **C4**).
+
+One note for whoever picks this up:
 - **Read the API doc locally**, at
   `../coffee-pub-blacksmith/documentation/api/api-importer.md`. Blacksmith is
   holding it off the wiki (`wiki-sync.mjs:105`) even though it now documents a
@@ -429,14 +518,18 @@ filtering for search). That is 2b, below.
 
 #### Where this stands
 
-**The codex half is complete.** It is a Tool window on
+**The codex half is complete and shipped in 13.0.2.** It is a Tool window on
 `BlacksmithToolWindowBaseV2`, with search and tag filters in `toolBarLeft`, results
-alone in the body, an entry count in the footer, Add Entry and the options menu as
-header actions, debounced search and a cached match haystack. That is the Compendium
-Search shape, which was the original ask.
+alone in the body, an entry count in the footer, Add Entry as a header action,
+debounced search and a cached match haystack. That is the Compendium Search shape,
+which was the original ask.
 
-Still owed on the codex side: **H5**, which is what lets the Light and Glass themes
-come back on.
+**Nothing is owed on the codex side.** An earlier draft said H5 was still outstanding;
+H5 closed in 13.0.2 and is in [Closed](#closed). The panel draws from the
+`--blacksmith-tool-*` family and all three themes work. Since then the window also
+**defaults to Light** — matching the other Tool windows a GM keeps open beside the
+canvas — and the codex options menu became a **submenu of the shell's controls menu**
+rather than a second `…` opening a second context menu.
 
 **The quest half is a decision, not a task.** Quests stay on the standard base and
 grow a list-plus-detail layout — but that layout has not been designed, and it is

@@ -1,0 +1,21 @@
+[
+  {
+    "name": "FIXTURE Orphan Minimal",
+    "category": "Locations",
+    "tags": ["fixture", "orphan"]
+  },
+  {
+    "name": "FIXTURE Orphan With Shared Fields Only",
+    "img": null,
+    "category": "Characters",
+    "plotHook": "Every field here is one BOTH kinds use. Nothing in this object is codex-only or quest-only.",
+    "location": "Faerûn > Moonsea > Phlan",
+    "tags": ["fixture", "orphan"]
+  },
+  {
+    "name": "FIXTURE Orphan Description Trap",
+    "category": "Locations",
+    "description": "`description` is deliberately the ONLY body field here. It is the quest's main body field AND the legacy codex name for `summary`, so it must NOT be treated as a discriminator by either predicate. This entry must fall through, not be claimed by quests.",
+    "tags": ["fixture", "orphan"]
+  }
+]

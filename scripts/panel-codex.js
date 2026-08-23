@@ -7,11 +7,17 @@ import { trackModuleTimeout, clearTrackedTimeout, moduleDelay } from './timer-ut
 import { showJournalPicker } from './utility-journal.js';
 import {
     resolveCodexLinks,
-    mergeCodexLinks,
     reportResolution,
     normalizeCodexLink,
     codexLinkKey
 } from './utility-resolver.js';
+import {
+    validateCodexEntry,
+    importCodexEntry,
+    findDuplicateNames,
+    sortCodexPages,
+    countUnresolvedLinks
+} from './import-codex.js';
 import {
     getPinsApi,
     deleteCodexPin,
@@ -1055,30 +1061,17 @@ export class CodexPanel {
     }
 
     /**
-     * The codex `…` menu.
+     * The codex actions, as context-menu items.
      *
-     * `event` may be null. Blacksmith's Tool base calls a header action's `onClick`
-     * with the click event when the action is a direct title-bar button, and with
-     * `null` when the same action is invoked from the controls context menu
-     * (`window-tool-base.js:360`) — where there is no originating click to report.
-     * `fallbackEl` anchors the menu in that case.
+     * Public because the Tool window nests these as a **submenu** under its own
+     * controls menu rather than opening a second context menu of its own — one
+     * `…`, one menu. `getCodexMenuItems()` returns the flat list a submenu wants;
+     * `_openTitlebarMenu` below still exists for a host that renders its own
+     * `.codex-titlebar-menu` button and has nowhere to nest into.
      *
-     * @param {MouseEvent|null} event
-     * @param {HTMLElement|null} [fallbackEl] anchor when there is no event
-     * @private
+     * @returns {Array<{name: string, icon: string, callback: Function}>}
      */
-    _openTitlebarMenu(event, fallbackEl = null) {
-        const blacksmith = getBlacksmith();
-        if (!blacksmith?.uiContextMenu?.show) return;
-
-        let x = event?.clientX;
-        let y = event?.clientY;
-        if (!Number.isFinite(x) || !Number.isFinite(y)) {
-            const rect = (fallbackEl ?? this.element)?.getBoundingClientRect?.();
-            x = rect ? rect.right - 8 : 0;
-            y = rect ? rect.top + 8 : 0;
-        }
-
+    getCodexMenuItems() {
         const coreItems = [{
             name: 'Refresh Codex',
             icon: 'fa-solid fa-sync-alt',
@@ -1113,11 +1106,41 @@ export class CodexPanel {
             { name: 'Export Codex as JSON',                 icon: 'fa-solid fa-file-export', callback: () => this._openExportCodexDialog() }
         ] : [];
 
+        return [...coreItems, ...gmItems];
+    }
+
+    /**
+     * Open the codex actions as a standalone context menu.
+     *
+     * Only for a host that renders its own `.codex-titlebar-menu` button — the Tool
+     * window does not, and nests `getCodexMenuItems()` as a submenu instead. The
+     * panel's delegated click handler still recognises that class, so this stays.
+     *
+     * `event` may be null: Blacksmith's Tool base calls a header action's `onClick`
+     * with the click event for a title-bar button and with `null` from the controls
+     * context menu (`window-tool-base.js:360`). `fallbackEl` anchors that case.
+     *
+     * @param {MouseEvent|null} event
+     * @param {HTMLElement|null} [fallbackEl] anchor when there is no event
+     * @private
+     */
+    _openTitlebarMenu(event, fallbackEl = null) {
+        const blacksmith = getBlacksmith();
+        if (!blacksmith?.uiContextMenu?.show) return;
+
+        let x = event?.clientX;
+        let y = event?.clientY;
+        if (!Number.isFinite(x) || !Number.isFinite(y)) {
+            const rect = (fallbackEl ?? this.element)?.getBoundingClientRect?.();
+            x = rect ? rect.right - 8 : 0;
+            y = rect ? rect.top + 8 : 0;
+        }
+
         blacksmith.uiContextMenu.show({
             id: `${MODULE.ID}-codex-titlebar-menu`,
             x,
             y,
-            zones: { core: coreItems, gm: gmItems }
+            zones: { core: this.getCodexMenuItems() }
         });
     }
 
@@ -1367,116 +1390,53 @@ export class CodexPanel {
                                 return;
                             }
                             this._updateProgressBar(10, 'Validating import data...');
-                            let added = 0, updated = 0, duplicatesMerged = 0;
-                            const importNameCounts = {};
-                            const duplicateNames = [];
-                            data.forEach(entry => {
-                                if (entry.name) {
-                                    importNameCounts[entry.name] = (importNameCounts[entry.name] || 0) + 1;
-                                    if (importNameCounts[entry.name] > 1 && !duplicateNames.includes(entry.name)) duplicateNames.push(entry.name);
-                                }
-                            });
+                            const duplicateNames = findDuplicateNames(data);
                             if (duplicateNames.length > 0) ui.notifications.warn(`Warning: Import data contains duplicate entry names: ${duplicateNames.join(', ')}. These will be merged with existing entries.`);
                             this._updateProgressBar(20, `Processing ${data.length} entries...`);
                             // Filled as entries resolve their links; reported once below.
                             this._resolveReports = [];
+                            let added = 0, updated = 0, duplicatesMerged = 0;
+                            const failures = [];
                             const totalEntries = data.length;
                             for (let i = 0; i < data.length; i++) {
                                 const entry = data[i];
                                 const entryProgress = 20 + ((i / totalEntries) * 60);
-                                this._updateProgressBar(entryProgress, `Processing: ${entry.name}`);
-                                let page = null;
-                                if (entry.uuid) page = this.selectedJournal.pages.find(p => p.getFlag(MODULE.ID, 'codexUuid') === entry.uuid);
-                                if (!page) page = this.selectedJournal.pages.find(p => p.name === entry.name);
-                                // Canonical field is `summary`; accept legacy `description` imports.
-                                const summary = entry.summary ?? entry.description ?? '';
-                                // Links: uuid-bearing links pass through, bare names resolve via
-                                // Blacksmith (entry's own name typed by category, cross-references
-                                // by their own `type`). Legacy single `link` is folded in by the helper.
-                                const { links: resolvedLinks, reports } = await resolveCodexLinks(entry);
-                                this._resolveReports?.push(...reports);
-                                const systemData = {
-                                    summary,
-                                    category: entry.category || '',
-                                    plotHook: entry.plotHook || '',
-                                    location: entry.location || '',
-                                    links: resolvedLinks,
-                                    tags: Array.isArray(entry.tags) ? entry.tags : [],
-                                    img: entry.img || ''
-                                };
-                                // Related codex entries: plain names, resolved at render against
-                                // the journal's pages, so a name whose entry doesn't exist yet
-                                // links itself once it does. Present in the import replaces;
-                                // absent preserves (same rule as expandedDetails) — importing an
-                                // older JSON must not silently wipe the relationships.
-                                if (Array.isArray(entry.related)) {
-                                    systemData.related = entry.related
-                                        .map(r => String(r ?? '').trim())
-                                        .filter(Boolean);
-                                }
-
-                                if (page && page.type !== CODEX_PAGE_TYPE) {
-                                    // Legacy text page matched — re-import IS the conversion path:
-                                    // replace it with a typed page (preserving ownership and sort)
-                                    const ownership = foundry.utils.deepClone(page.ownership);
-                                    const sort = page.sort;
-                                    await page.delete();
-                                    const [newPage] = await this.selectedJournal.createEmbeddedDocuments('JournalEntryPage', [{
-                                        name: entry.name,
-                                        type: CODEX_PAGE_TYPE,
-                                        system: systemData,
-                                        text: { content: entry.expandedDetails || '' },
-                                        ownership,
-                                        sort
-                                    }]);
-                                    if (entry.uuid) await newPage.setFlag(MODULE.ID, 'codexUuid', entry.uuid);
-                                    updated++;
-                                } else if (page) {
-                                    // Links already on the page that this import doesn't produce were
-                                    // put there by hand (dragging was the only way to add one before
-                                    // 13.3.12) and aren't recoverable from the JSON, so keep them.
-                                    // Foundry replaces arrays wholesale, so this has to be explicit.
-                                    const patch = {
-                                        system: {
-                                            ...systemData,
-                                            links: mergeCodexLinks(page.system?.links, resolvedLinks)
-                                        }
-                                    };
-                                    // expandedDetails present in the import (even '') replaces; absent/null preserves
-                                    if (entry.expandedDetails !== undefined && entry.expandedDetails !== null) {
-                                        patch['text.content'] = entry.expandedDetails;
-                                    }
-                                    await page.update(patch);
-                                    updated++;
-                                    if (entry.uuid && page.getFlag(MODULE.ID, 'codexUuid') !== entry.uuid) duplicatesMerged++;
-                                } else {
-                                    const newPage = await this.selectedJournal.createEmbeddedDocuments('JournalEntryPage', [{
-                                        name: entry.name,
-                                        type: CODEX_PAGE_TYPE,
-                                        system: systemData,
-                                        text: { content: entry.expandedDetails || '' },
-                                        ownership: { default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE }
-                                    }]);
-                                    if (entry.uuid) await newPage[0].setFlag(MODULE.ID, 'codexUuid', entry.uuid);
-                                    added++;
+                                this._updateProgressBar(entryProgress, `Processing: ${entry?.name ?? `Entry ${i + 1}`}`);
+                                // Per-entry validate-then-import, matching the contract in
+                                // import-codex.js. One bad entry is reported and skipped
+                                // rather than aborting the run — the old inline version let
+                                // a single throw take the whole import down to 'Invalid JSON.'
+                                try {
+                                    const { validationWarnings } = validateCodexEntry(entry);
+                                    for (const warning of validationWarnings) ui.notifications.warn(warning);
+                                    const result = await importCodexEntry(entry, this.selectedJournal);
+                                    this._resolveReports?.push(...result.resolveReports);
+                                    if (result.outcome === 'added') added++;
+                                    else updated++;
+                                    if (result.duplicateMerged) duplicatesMerged++;
+                                } catch (error) {
+                                    const label = entry?.name ? `"${entry.name}"` : `entry ${i + 1}`;
+                                    failures.push(`${label}: ${error?.message ?? error}`);
+                                    console.error(`${MODULE.TITLE} | Codex import failed for ${label}:`, error);
                                 }
                                 if (i % 5 === 0) await moduleDelay(100);
                             }
                             this._updateProgressBar(80, 'Sorting entries...');
-                            const sorted = this.selectedJournal.pages.contents.slice().sort((a, b) => a.name.localeCompare(b.name));
-                            for (let i = 0; i < sorted.length; i++) await sorted[i].update({ sort: (i + 1) * 10 });
+                            await sortCodexPages(this.selectedJournal);
                             this._updateProgressBar(90, 'Finalizing import...');
                             let message = `Codex import complete: ${added} added, ${updated} updated.`;
                             if (duplicatesMerged > 0) message += ` ${duplicatesMerged} duplicates were merged.`;
                             ui.notifications.info(message);
+                            if (failures.length > 0) {
+                                ui.notifications.error(
+                                    `${failures.length} codex ${failures.length === 1 ? 'entry' : 'entries'} could not be imported. See the console for details.`
+                                );
+                            }
                             reportResolution(this._resolveReports, 'Codex import');
                             this._resolveReports = null;
                             // Unresolved links are kept, not dropped — tell the GM the
                             // retry exists rather than running a bulk write unasked.
-                            const stillUnresolved = (this.selectedJournal.pages?.contents ?? [])
-                                .filter(p => p.type === CODEX_PAGE_TYPE)
-                                .reduce((sum, p) => sum + (p.system?.links ?? [])
-                                    .filter(l => !String(l?.uuid ?? '').trim() && String(l?.name ?? '').trim()).length, 0);
+                            const stillUnresolved = countUnresolvedLinks(this.selectedJournal);
                             if (stillUnresolved > 0) {
                                 ui.notifications.info(
                                     `${stillUnresolved} codex ${stillUnresolved === 1 ? 'link is' : 'links are'} still unresolved and kept as plain text. `

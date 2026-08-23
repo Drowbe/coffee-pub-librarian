@@ -8,9 +8,22 @@
    window follows the Light / Dark / Glass theme the user picks.
 
    Blacksmith's styles/window-compendium-search.css is the reference:
-   it contains no colour literals at all. panel-codex.css does not yet
-   meet that bar (TODO H5) — until it does, this window defaults to the
-   dark theme so the shell does not fight the panel's own skin.
+   it contains no colour literals at all. panel-codex.css does not meet
+   that bar and deliberately never will — the brand accent and the state
+   colours stay literal, because a theme may repaint a surface but must
+   not repaint meaning.
+
+   The rule that keeps the two from fighting: **a literal background may
+   not carry a themed foreground.** Mixing them inverts — the text token
+   flips with the theme while the surface underneath does not, and the
+   pair goes unreadable in whichever theme was not the one being looked
+   at while it was written. Either both come from --blacksmith-tool-*,
+   or both are literal. (A literal at low alpha, roughly <= 0.3, tints
+   the themed surface beneath rather than replacing it, and is fine
+   under a themed foreground.)
+
+   This window defaults to the LIGHT theme, matching the other Tool
+   windows a GM keeps open beside the canvas.
    ================================================================== */
 
 /* ===== SCROLL PLUMBING ===========================================

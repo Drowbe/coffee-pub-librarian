@@ -239,7 +239,7 @@
 
 .librarian-panel-host[data-position="left"] .codex-search .clear-search:hover {
     opacity: 1;
-    color: var(--blacksmith-tool-text, rgba(255, 255, 255, 0.9));
+    color: rgba(255, 255, 255, 0.95);
     background: rgba(185, 84, 61, 0.9);
 }
 
@@ -270,7 +270,7 @@
 }
 
 .librarian-panel-host[data-position="left"] .codex-category {
-    background: rgba(115, 51, 36, 0.8);
+    background: var(--blacksmith-tool-surface-raised, rgba(115, 51, 36, 0.8));
     padding: 6px 8px;
     border-radius: 4px;
     border: 1px solid var(--blacksmith-tool-divider, rgba(0, 0, 0, 0.1));
@@ -606,7 +606,7 @@
 .librarian-panel-host[data-position="left"] .codex-tag.selected {
     background: rgba(50, 100, 150, 0.4);
     border-color: rgba(50, 100, 150, 0.0);
-    color: var(--blacksmith-tool-text, rgba(255, 255, 255, 0.9));
+    color: rgba(255, 255, 255, 0.95);
 }
 .librarian-panel-host[data-position="left"] .codex-tag.selected:hover {
     background: rgba(50, 100, 150, 0.7);

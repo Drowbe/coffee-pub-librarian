@@ -142,8 +142,16 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to register the codex window:`, error);
     }
 
-    // Neither tool declares `supersedes`, and that is a decision rather than an
-    // oversight.
+    // ONE "Librarian" button, opening a secondary bar that carries Codex and Quests.
+    //
+    // These were two flat tools in the `campaign` group, which spent two slots of
+    // menubar width on one module and left no room for anything Librarian grows
+    // later. Blacksmith's secondary bars are the supported shape for exactly this:
+    // a toggle tool opens a bar below the menubar, tab-like, and opening another
+    // module's bar closes ours automatically.
+    //
+    // Neither the parent tool nor the bar items declare `supersedes`, and that is a
+    // decision rather than an oversight.
     //
     // `registerMenubarTool` accepts `supersedes: [toolId]` to drop or refuse a
     // duplicate registration in either load order, and Blacksmith kept the mechanism
@@ -160,18 +168,67 @@ Hooks.once('ready', async () => {
     // Squire's ids were `squire-quests` / `squire-codex`.
     if (typeof blacksmith.registerMenubarTool === 'function') {
         try {
-            blacksmith.registerMenubarTool('librarian-quests', {
-                icon: 'fa-solid fa-flag',
-                name: 'librarian-quests',
-                title: 'Quests',
-                tooltip: 'Open the quest log',
+            // Opens the browser and closes the bar behind it: the bar is a launcher,
+            // not a mode, so leaving it open after a choice would be a second thing
+            // for the user to dismiss.
+            const openBrowser = async (kind, notReadyMessage) => {
+                const open = game.modules.get(MODULE.ID)?.api?.openCampaignBrowser;
+                if (typeof open !== 'function') {
+                    ui.notifications.warn(notReadyMessage);
+                    return;
+                }
+                await open(kind);
+                blacksmith.closeSecondaryBar?.();
+            };
+
+            // Registered before the tool that toggles it — `toggleSecondaryBar` on an
+            // unregistered type is a no-op, and the parent button is clickable from
+            // the moment it renders.
+            const barRegistered = typeof blacksmith.registerSecondaryBarType === 'function'
+                ? await blacksmith.registerSecondaryBarType('librarian', {
+                    size: 'default',
+                    // Manual, not `auto`: the bar is a menu the user opens on purpose,
+                    // and a timed close would pull it out from under a slow reader.
+                    persistence: 'manual'
+                })
+                : false;
+
+            if (barRegistered) {
+                blacksmith.registerSecondaryBarItem('librarian', 'librarian-bar-codex', {
+                    icon: 'fa-solid fa-book',
+                    label: 'Codex',
+                    tooltip: 'Open the codex',
+                    zone: 'left',
+                    group: 'browsers',
+                    order: 10,
+                    onClick: () => openBrowser('codex', 'The codex is not ready yet.')
+                });
+                blacksmith.registerSecondaryBarItem('librarian', 'librarian-bar-quests', {
+                    icon: 'fa-solid fa-flag',
+                    label: 'Quests',
+                    tooltip: 'Open the quest log',
+                    zone: 'left',
+                    group: 'browsers',
+                    order: 20,
+                    onClick: () => openBrowser('quest', 'The quest log is not ready yet.')
+                });
+            }
+
+            blacksmith.registerMenubarTool('librarian', {
+                icon: 'fa-solid fa-books',
+                name: 'librarian',
+                title: 'Librarian',
+                tooltip: 'Codex and quests',
                 onClick: async () => {
-                    const open = game.modules.get(MODULE.ID)?.api?.openCampaignBrowser;
-                    if (typeof open !== 'function') {
-                        ui.notifications.warn('The quest log is not ready yet.');
+                    // Without a registered bar there is nothing to toggle, so fall
+                    // back to the codex rather than presenting a dead button. This is
+                    // the old single-tool behaviour and is what an older Blacksmith
+                    // gets.
+                    if (!barRegistered) {
+                        await openBrowser('codex', 'The codex is not ready yet.');
                         return;
                     }
-                    await open('quest');
+                    blacksmith.toggleSecondaryBar('librarian');
                 },
                 zone: 'middle',
                 group: 'campaign',
@@ -181,38 +238,19 @@ Hooks.once('ready', async () => {
                 gmOnly: false,
                 leaderOnly: false,
                 visible: true,
-                toggleable: false,
+                // Toggleable so the button carries an active state; the mapping below
+                // is what keeps that state in sync when the bar closes by other means
+                // (Escape, or another module's bar opening over ours).
+                toggleable: barRegistered,
                 active: false
             });
-            blacksmith.registerMenubarTool('librarian-codex', {
-                icon: 'fa-solid fa-book',
-                name: 'librarian-codex',
-                title: 'Codex',
-                tooltip: 'Open the codex',
-                onClick: async () => {
-                    const open = game.modules.get(MODULE.ID)?.api?.openCampaignBrowser;
-                    if (typeof open !== 'function') {
-                        ui.notifications.warn('The codex is not ready yet.');
-                        return;
-                    }
-                    await open('codex');
-                },
-                zone: 'middle',
-                group: 'campaign',
-                groupOrder: 20,
-                order: 205,
-                moduleId: MODULE.ID,
-                gmOnly: false,
-                leaderOnly: false,
-                visible: true,
-                toggleable: false,
-                active: false
-            });
+
+            if (barRegistered) blacksmith.registerSecondaryBarTool?.('librarian', 'librarian');
+
             blacksmith.renderMenubar?.(true);
         } catch (error) {
             console.error(`${MODULE.TITLE} | Failed to register the menubar tools:`, error);
         }
     }
-
     console.log(`${MODULE.TITLE} | Ready`);
 });

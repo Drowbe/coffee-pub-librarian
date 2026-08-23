@@ -62,13 +62,18 @@ export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {
             position: { width: 480, height: 820 },
             window: { title: 'Codex', resizable: true, minimizable: true, icon: 'fa-solid fa-book' },
             windowSizeConstraints: { minWidth: 360, minHeight: 320 },
-            // Dark is the initial theme because it is what the codex has always
-            // looked like; Light and Glass are now offered too. `panel-codex.css`
-            // draws its surfaces, text tones and dividers from the
-            // `--blacksmith-tool-*` family, so the panel follows whichever the user
-            // picks. Brand accent and state colours stay literal on purpose — a
-            // theme may repaint a surface, but not meaning.
-            toolTheme: 'dark',
+            // Light is the initial theme, matching the rest of the Tool windows a
+            // GM keeps open beside the canvas (Compendium Search, Shop) — the codex
+            // sat alone in dark because that is what Squire's tray looked like, not
+            // because anything about the codex wanted it. `panel-codex.css` draws
+            // its surfaces, text tones and dividers from the `--blacksmith-tool-*`
+            // family, so the panel follows whichever the user picks; brand accent
+            // and state colours stay literal on purpose — a theme may repaint a
+            // surface, but not meaning.
+            //
+            // Anyone who has already picked a theme keeps it: `_loadToolThemePreference`
+            // reads localStorage and only falls back to this when nothing is stored.
+            toolTheme: 'light',
             rememberPosition: true,
             // Unchanged from the CampaignBrowserWindow era on purpose: position,
             // title-bar mode and theme all hang off this key, so renaming it silently
@@ -83,12 +88,19 @@ export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {
     }
 
     /**
-     * Add Entry and the `…` menu, in the title bar rather than inside the panel.
+     * Add Entry, in the title bar rather than inside the panel.
      *
-     * The panel's template used to render both as icons under a "Codex" heading of
-     * its own, directly beneath the window's title bar — a duplicate title row,
-     * styled by a class that only existed in Squire's tray stylesheet. The window
-     * owns its chrome now, which is the whole point of the Tool shell.
+     * The panel's template used to render this and a `…` as icons under a "Codex"
+     * heading of its own, directly beneath the window's title bar — a duplicate
+     * title row, styled by a class that only existed in Squire's tray stylesheet.
+     * The window owns its chrome now, which is the whole point of the Tool shell.
+     *
+     * **There is deliberately no `…` action here.** The Tool shell already puts one
+     * in the title bar for its own controls menu, and a header action is mirrored
+     * into that same menu (`window-tool-base.js:354`) — so a `codex-menu` action
+     * produced two adjacent `…` buttons, the second of which opened a *second*
+     * context menu on top of the first. The codex actions are nested as a submenu
+     * of the shell's menu instead; see `_getToolContextMenuItems`.
      *
      * The panel's delegated click handler still recognises `.codex-titlebar-menu`
      * and `.add-codex-button`, so a different host is free to render its own.
@@ -103,15 +115,39 @@ export class CodexBrowserWindow extends BlacksmithToolWindowBaseV2 {
                 onClick: () => getCodexPanel()._onAddEntry()
             });
         }
-        actions.push({
-            id: 'codex-menu',
-            icon: 'fa-solid fa-ellipsis-h',
-            label: 'Codex options',
-            // `event` is null when this action is invoked from the controls context
-            // menu rather than clicked as a title-bar button, so pass an anchor.
-            onClick: event => getCodexPanel()._openTitlebarMenu(event, this.element)
-        });
         return actions;
+    }
+
+    /**
+     * Nest the codex actions as a submenu of the shell's controls menu.
+     *
+     * The base builds its list from `getToolHeaderActions()` plus the inherited
+     * header controls, then a separator, then the shell's own entries (title-bar
+     * mode, Theme, Minimize, Reset Position, Close). It maps each header action to
+     * `{name, icon, disabled, callback}` and **drops any `submenu`** — so a submenu
+     * cannot be declared through a header action and has to be inserted here.
+     *
+     * Placed immediately before the first separator, which puts "Codex options"
+     * with Add Codex Entry in the module's own group rather than among the shell's
+     * window controls. Theme is the base's own precedent for the shape.
+     */
+    _getToolContextMenuItems() {
+        const items = super._getToolContextMenuItems?.() ?? [];
+        const submenu = getCodexPanel().getCodexMenuItems();
+        if (!submenu.length) return items;
+
+        const entry = {
+            name: 'Codex options',
+            icon: 'fa-solid fa-ellipsis-h',
+            submenu
+        };
+        // Append rather than splice when the base emitted no separator — that only
+        // happens when it had no items of its own to separate, so the end is the
+        // module's group.
+        const separatorIndex = items.findIndex(item => item?.separator);
+        if (separatorIndex === -1) items.push(entry);
+        else items.splice(separatorIndex, 0, entry);
+        return items;
     }
 
     async getData() {

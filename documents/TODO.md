@@ -35,7 +35,7 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 |---|---|---|---|---|
 | **C4** | Critical | Quests | Quest export writes an empty `scenePins`; pin placement is lost | M |
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
-| **H6** | High | Blacksmith API | Adopt `api.importer` via `extendsKind` — **blocked on Blacksmith's branch** | M |
+| **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **L1** | Low | v14 | Bare `FilePicker` and `saveDataToFile` globals | S |
@@ -241,58 +241,129 @@ warnings, prompt-template copying. Written twice and already diverging.
 `api.compendiums`, `mergeCodexLinks`, retyping legacy text pages to our subtype, and
 page sorting.
 
-**Blocked, and the plan changed. Do not build against today's `api-importer.md`.**
+**Blocked, and the contract we documented here has been withdrawn.** Blacksmith
+retracted the callback model in August 2026 — not adjusted, replaced. Do not build
+against `api-importer.md`, and do not build against the `extendsKind` /
+`onValidateEntry` / `onImportEntry` design that this section previously described.
 
-The original plan here was a standalone kind with `showInSwitcher: false`. That was
-wrong: it would have put codex and quests in *neither* dropdown — reachable only from
-our own panel menus — which is a shared engine with no shared entry point. A GM
-importing codex entries is importing journal content and should find it where journal
-content lives.
+**What replaced it.** A kind registers a **declaration** — its shape, as data — and
+Blacksmith derives the JSON template, authoring guide, prompt, validation,
+normalization, **document construction**, the result envelope and the export from it.
+Their reasoning: five callbacks is five places for every module to differ, which
+institutionalizes the divergence the importer was built to end.
 
-Blacksmith accepted a **contribution model** instead (agreed August 2026):
+**Blacksmith constructs our codex page.** This reverses the guarantee the earlier plan
+rested on, and the reversal is correct on a point of fact we had wrong: Foundry
+namespaces subtype **declaration**, not **creation**. We declare
+`coffee-pub-librarian.codex` in our manifest; anyone calling
+`create({ type: 'coffee-pub-librarian.codex', system: {…} })` gets a document our
+registered `TypeDataModel` validates. "Cannot declare" had been silently upgraded to
+"cannot construct" — by us as much as by them. Their item importer is the precedent:
+Artificer's items are built by Blacksmith today.
 
-- A descriptor declares `extendsKind: 'journal'` and contributes its own
-  `templateOptions`, prompt builders and callbacks into the host kind.
-- **Dispatch is a predicate over the raw entry, not `onProfileName`.** A label cannot
-  say "not mine". Our predicates, and the trap in them: `description` is **not** a
-  discriminator — it is the quest's body field *and* the legacy codex name for
-  `summary`. Key quests on `tasks` / `status` / `reward`; key codex on
-  `summary` / `related` / `expandedDetails` plus `!Array.isArray(entry.tasks)`.
-- **The callback contract is changing.** `onValidateEntry` will return the converted
-  data and `onImportEntry` will receive it, instead of both re-parsing. Build against
-  that. Today's doc already tells you to return converted data; the registry discards
-  it.
-- **Envelopes are claimed before per-entry dispatch.** Quest exports are
-  `{ quests, scenePins, exportVersion }`, not a bare array — `parsePayload` would
-  otherwise treat the whole file as one entry. A claim returns `{ entries, context }`,
-  and `context` reaches `onImportEntry` and `onImportComplete`.
-- `onImportStart` / `onImportComplete` are being added, which is where our
-  `isImporting` flag and a batch-level resolution cache go. Import progress gains an
-  elapsed-time throttle (100–150ms).
-- An envelope-level `kind` field is **diagnostic only, never dispatch**, so a
-  hand-authored payload without it is never second-class.
+**Verified 2026-08-23: creation works.** `testing/macro-subtype-creation-probe.js`
+creates a `coffee-pub-librarian.codex` page and gets `CodexPageModel` bound with
+`system` intact — the failure mode worth fearing was a page created as a generic type
+with the schema silently dropped, and it did not happen.
 
-**Already done on our side:** the per-entry codex import is extracted into
-[`scripts/import-codex.js`](../scripts/import-codex.js), shaped to
-`onValidateEntry` / `onImportEntry`. Adoption should be a wiring change, not a rewrite.
-Quests still need the same extraction; `_importQuestsFromData` is batch-level and has
-to go per-entry.
+**But the probe proves less than the question implied.** Foundry does not attribute
+document creation to a calling module: there is no caller identity in `create()`, and
+the only namespaced thing is the manifest `documentTypes` declaration. A macro cannot
+simulate "Blacksmith calling it" any differently from us calling it — our own importer
+has exercised that exact path since 13.0.0. So "can a non-declaring module construct
+one" was never really a question Foundry can answer *no* to.
 
-Fixtures for the integration are in `testing/`: `fixture-import-orphan.json` (payloads
-matching neither predicate, including the `description` trap) and
-`fixture-import-quest-envelope.json` (an envelope with orphaned pins — see **C4**).
+The real constraint is unchanged and unrelated to callers: **with Librarian disabled,
+Foundry refuses these pages at load.** That is a load problem, not an API-design
+problem, and it is the same hazard behind the export completeness guard — which is why
+the export bullet below matters more than this probe did.
 
-One note for whoever picks this up:
-- **Read the API doc locally**, at
-  `../coffee-pub-blacksmith/documentation/api/api-importer.md`. Blacksmith is
-  holding it off the wiki (`wiki-sync.mjs:105`) even though it now documents a
-  shipped API; they have a TODO filed for the ordering. Do not go looking for it
-  online.
-- **Export is not in scope** and nothing is planned. Our export stays ours; do not
-  wait for a counterpart, and **keep its completeness guard** when the import half
-  moves — it compares what it gathered against the journal's codex page count and
-  refuses a partial, which is the failure mode Blacksmith flagged and has no answer
-  for yet.
+**What we still own:** the discriminator (declared as data), our friendly-field →
+`system` path mapping, a narrow transform hook for genuinely computed values, a
+post-create hook for cross-entry work (pins), and our own prompt wording — which
+Blacksmith will no longer host for anyone.
+
+**Their build is underway, and it is not a document any more.** Steps 0–3 of eleven
+are verified in a running world: the declaration engine is real code, and Blacksmith's
+own Loot profile imports through it via the same public `registerDeclaration` we will
+use. The Item importer routes by **declaration presence** — a declared profile takes
+the derived path, an undeclared one falls back to the old parser, with no list of
+migrated profiles to keep in step. That is the mechanism that will pick up our codex
+profile: declare it, and it routes.
+
+**Blocked specifically on their Journal kind**, which is the one we extend and the
+last of four to move. It is the hardest because it is the rendered form — fields feed
+a Handlebars template rather than landing on document paths — and it needs the
+passthrough seam their Item kind already has before it can construct a foreign subtype
+at all. Our codex profile cannot be declared until Journal moves.
+
+**Three model changes their build produced that bear directly on our mappings:**
+
+- **Key aliases and value aliases are different mechanisms.** `aliases` renames a
+  *value* (our quest `Complete` → `Succeeded`); `acceptsKeys` names other *keys* a
+  field may arrive under. **Our `summary` ← `description` fallback is a key alias, not
+  a value one** — and key aliases must resolve **after** discrimination, because
+  applied early one would turn every legacy codex entry into a quest. That is the
+  `description` trap in a new place; do not let it be re-introduced as an alias.
+- **`default` and `example` are in *authored* shape, never in the shape a transform
+  produces.** Blacksmith wrote a converted value as a default and it got converted
+  twice. Our `links: []`, `related: []`, `tags: []` defaults are fine because they are
+  already authored shape — but anything gaining a transform needs its default checked
+  against this rule.
+- **Validation now runs the conversion and discards it.** Transforms used to run only
+  at construction, so an unparseable value passed Validate and failed at Import. **Our
+  link resolution sits here**, which means an unresolvable link surfaces at Validate
+  rather than after documents exist. Good for us, and it changes where the
+  Auto-Link-retry story gets explained to the GM.
+
+Also worth having: their structured error envelope was always empty — `issueFromError`
+read `code`, `path` and `details` off thrown errors that no kind ever supplied, so
+every failure surfaced as a blanket `VALIDATE_FAILED` with a blank path. Declared
+profiles supply them, so **a codex entry that fails will name the field.**
+
+**Prerequisite: H2.** `tags` becomes a shared Blacksmith fragment applied through
+`TagsAPI.setTags()`, so `system.tags` goes away. That makes H2 a dependency of this
+item rather than a parallel cleanup.
+
+**Field mappings are written down** in
+[`documents/plans/declaration-field-mappings.md`](plans/declaration-field-mappings.md) —
+codex and quest, friendly field → target path, plus the seven genuinely-computed cases.
+That file is raw input for Blacksmith; delete it once their declarations exist.
+
+**Timeline: longer than previously recorded.** There is no branch. Blacksmith is
+rebuilding its own four kinds on the public declaration path first, enforced by a
+`tools/` check, and the change intentionally breaks every consumer. Do not schedule
+this against a near date.
+
+**Still true from the earlier design**, and carried forward because it survives the
+rewrite: `description` is not a discriminator (it is the quest's body field *and* the
+legacy codex name for `summary`); quest payloads are envelopes
+(`{ quests, scenePins, exportVersion }`) rather than bare arrays; and the fixtures in
+`testing/` — `fixture-import-orphan.json` and `fixture-import-quest-envelope.json` —
+remain valid under declarations.
+
+**`scripts/import-codex.js` is not wasted.** The wrapper shape is now wrong, but the
+conversion logic inside it is the input to the declaration: every friendly-field →
+`system`-path mapping it makes becomes a declared field. Expect to delete the
+orchestration — the create calls, the batch loop, the result reporting, the progress
+handling — and keep the knowledge.
+
+Two notes for whoever picks this up:
+
+- **The local docs are ahead of the API doc, and the API doc is behind the code.**
+  `api-importer.md` describes the withdrawn callback surface. The design lives in
+  `../coffee-pub-blacksmith/documentation/plans/plan-importer-api.md` and
+  `.../architecture/architecture-importer.md` — read those, and note the plan already
+  defines **Profile** as a schema specialization within a kind (`journal.area`), which
+  is what our codex and quest profiles are. None of it is on the wiki; do not go
+  looking online.
+- **Export is now in scope, and that is a change.** The declaration derives the export
+  as well as the import, so our export stops being ours alone. **The completeness guard
+  has to survive that** — it counts what it gathered against the `CODEX_PAGE_TYPE` pages
+  actually in the journal and refuses a partial. That is the disabled-module
+  silent-partial failure Blacksmith has no answer for, and a derived export that drops
+  it is a regression, not a simplification. Raise it with them before the declaration
+  shape is fixed rather than after.
 
 Once this lands, `showBlacksmithWait` in [`helpers.js`](../scripts/helpers.js) loses
 its only two callers and should go with it, along with its stale header comment
@@ -399,6 +470,37 @@ is the natural moment to adopt **H2** — otherwise quest tags get migrated twic
 Against it: it is a real migration with a live-world runbook, on top of one that
 has not finished running yet (**In flight**). Sequencing matters more than the
 decision itself.
+
+**Now coupled to Blacksmith, which this item did not previously record.** Their
+importer declaration model (**H6**) has a profile declare its fields as data —
+friendly name, type, required, allowed values, and **target path on the document**.
+That is most of what a quest data model is, and Blacksmith's own advice is to wait:
+building quests against declarations once beats building them twice, and a schema
+designed now would be a third shape needing reconciliation against a declaration
+shape that does not exist yet.
+
+**Recommendation: wait, and target the declaration.** The asymmetry decides it —
+building now risks designing a schema then reconciling it; building later costs delay
+only. Nothing has been built against a quest model yet, so there is no sunk cost.
+Their Journal kind is the last of four to move and is explicitly the hardest (it is
+the rendered form, where fields feed a Handlebars template rather than landing on
+document paths), so this is not close and should not be scheduled against a near date.
+
+**What is not blocked, and is A1's input either way:** the quest field inventory and
+the codex/quest discriminator, both already written down in
+[`plans/declaration-field-mappings.md`](plans/declaration-field-mappings.md). The
+quest column there is a *proposal* — those target paths do not exist yet. When A1
+lands it should implement that column rather than inventing its own.
+
+Two details from the mapping work that A1 owes attention:
+
+- **`visible` is a projection, not a stored field.** It maps onto
+  `ownership.default` (`false` → NONE, `true` → OBSERVER), and the schema needs
+  somewhere to express that rather than storing a boolean that then disagrees with
+  ownership.
+- **The `||GM hint||` and `((Treasure))` markup lives inside task text.** A1 deletes
+  it. Do not let a schema declare `tasks[].text` as opaque and preserve that encoding
+  forever.
 
 ### A2 — Journal routing bypasses HookManager
 

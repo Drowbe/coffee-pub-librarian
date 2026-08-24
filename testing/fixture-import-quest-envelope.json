@@ -66,6 +66,7 @@
           "questUuid": "JournalEntry.FIXTUREQUESTJRNL.JournalEntryPage.FIXTUREQUESTA01",
           "questIndex": 1,
           "questCategory": "Main Quest",
+          "_fixtureNote": "questIndex and questCategory are INFERRED from the Pins API config object, not observed in the legacy scene flag. Nothing has written that flag since the Pins API migration (TODO C4), so its true historical shape is unknowable. Stable core is questUuid, x, y, objectiveIndex.",
           "x": 1450,
           "y": 980,
           "pinType": "quest"

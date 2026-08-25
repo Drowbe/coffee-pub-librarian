@@ -145,31 +145,3 @@ export async function clearCodexTags(pageUuid) {
     if (!isTagsApiAvailable(api) || !pageUuid) return;
     await api.deleteRecordTags(CODEX_TAG_CONTEXT, pageUuid);
 }
-
-/**
- * Every tag currently assigned to a codex entry, with a count of entries
- * carrying it. This is the codex tag cloud's vocabulary.
- *
- * **This is O(registry) API calls, and that is Blacksmith's gap, not ours.**
- * `getRegistry()` is world-wide rather than per-context and there is no
- * `getTagCounts(contextKey)`, so scoping to the codex means asking
- * `getRecordsByTag` once per registry tag. Blacksmith asked to be told when a
- * consumer hit this; we have. Replace this body if they add the scoped call.
- *
- * Every row in this context is a codex entry. Pin rows used to share the bucket
- * and were filtered out here by string shape; Blacksmith removed the pin mirror's
- * assignment writes, so there is nothing to filter and nothing to sniff. Do not
- * reintroduce a shape test -- see the header for why it was never safe.
- *
- * @returns {Array<{tag: string, count: number}>} sorted by tag
- */
-export function getCodexTagCounts() {
-    const api = getTagsApi();
-    if (!isTagsApiAvailable(api)) return [];
-    const out = [];
-    for (const tag of api.getRegistry() ?? []) {
-        const records = api.getRecordsByTag(CODEX_TAG_CONTEXT, tag) ?? [];
-        if (records.length) out.push({ tag, count: records.length });
-    }
-    return out.sort((a, b) => a.tag.localeCompare(b.tag));
-}

@@ -221,14 +221,53 @@ export async function migrate({ clearLocal = true } = {}) {
         return { ok: false, reason };
     }
 
-    let migrated = 0, resumed = 0, skipped = 0;
+    let migrated = 0, resumed = 0, skipped = 0, cleared = 0;
     const failures = [];
+    // Pages whose stale local copy differed from the central store, i.e. edited since
+    // migration. Informational, not a failure.
+    const diverged = [];
 
     // Sequential so each page is confirmed and flagged before the next — see
     // constraints 1, 3 and 4 in the file header.
     for (const page of pages) {
         const { state, local } = classify(page, api);
-        if (state === 'already-migrated' || state === 'no-tags') { skipped++; continue; }
+
+        // A page flagged as migrated still has its local copy if the first pass ran
+        // with `clearLocal: false` -- the recommended order, so the codex keeps
+        // rendering from `system.tags` while the readers are converted. Without this
+        // branch the sentinel that makes re-runs safe also short-circuits the clearing
+        // pass, and `migrate({ clearLocal: true })` would skip all 342 pages and
+        // report success having cleared nothing.
+        if (state === 'already-migrated') {
+            if (!clearLocal || !local.length) { skipped++; continue; }
+            // NO confirm-before-clear here, and that is the opposite of the first pass
+            // on purpose. That rule protects a page whose only copy is local. A flagged
+            // page already had its central write confirmed once, and from the moment
+            // the readers were converted the central store became the source of truth
+            // -- so a local copy that DISAGREES is stale, not authoritative.
+            //
+            // The first version of this branch re-ran the confirm check and refused any
+            // page whose local copy held a tag central lacked. That is precisely what a
+            // page edited since migration looks like: remove a tag through the editor,
+            // central drops it, `system.tags` keeps it. The one page that had been used
+            // for testing failed for exactly that reason, and "central store is missing
+            // tags" was the wrong diagnosis -- nothing was missing.
+            //
+            // Divergence is still worth surfacing, so it is counted and reported rather
+            // than treated as an error.
+            const confirmed = (api.getTags(CODEX_TAG_CONTEXT, page.uuid) ?? []).map(normalizeTag);
+            if (!local.every(tag => confirmed.includes(tag))) diverged.push(page.name);
+            try {
+                await page.update({ 'system.tags': [] });
+                cleared++;
+            } catch (error) {
+                failures.push(`${page.name}: ${error?.message ?? error}`);
+                console.error(`${MODULE.TITLE} | Clearing local tags failed for "${page.name}":`, error);
+            }
+            continue;
+        }
+
+        if (state === 'no-tags') { skipped++; continue; }
 
         try {
             await api.setTags(CODEX_TAG_CONTEXT, page.uuid, local);
@@ -262,21 +301,27 @@ export async function migrate({ clearLocal = true } = {}) {
         ok: failures.length === 0,
         journal: journal.name,
         codexPages: pages.length,
-        migrated, resumed, skipped,
+        migrated, resumed, skipped, cleared,
+        divergedFromLocal: diverged.length,
         failed: failures.length,
         localCleared: clearLocal
     };
     console.log(`${MODULE.TITLE} | Codex tag migration complete`);
     console.table(summary);
     if (failures.length) console.error(`${MODULE.TITLE} | Failures:`, failures);
+    if (diverged.length) console.log(`${MODULE.TITLE} | Local copy was stale (edited since migration) on:`, diverged);
 
-    const total = migrated + resumed;
+    const total = migrated + resumed + cleared;
     if (failures.length) {
         ui.notifications.error(
             `Codex tag migration: ${total} migrated, ${failures.length} failed. Re-run to retry — it is safe. See the console.`
         );
     } else {
-        ui.notifications.info(`Codex tag migration complete: ${total} pages migrated, ${skipped} skipped.`);
+        ui.notifications.info(
+            cleared
+                ? `Codex tags: ${cleared} pages had their local copy cleared, ${skipped} skipped.`
+                : `Codex tag migration complete: ${total} pages migrated, ${skipped} skipped.`
+        );
     }
     return summary;
 }

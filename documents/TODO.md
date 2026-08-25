@@ -19,6 +19,35 @@ Open work for Coffee Pub Librarian, ordered by severity.
 - **Severity is about the user, not the effort.** Critical means broken in shipped
   code. Size (S/M/L) is a separate column.
 
+## Owed to Blacksmith
+
+Things they need to hear, held here rather than in a conversation so they survive one.
+Delete a line when it has been sent.
+
+- **Quest import has not been exercised since the tag migration.** We had stopped
+  testing it while waiting on their importer work, and separately it could not have
+  worked at all — see **C5**, where `autoAddPartyMembers` was read but never registered,
+  so every import threw and reported `Invalid JSON.` Both facts matter to them: the
+  first because they are sequencing our profile against it, the second because it is
+  another instance of their own "reading is not exercising" argument, found by a harness
+  built *because* of their reader-defect rule.
+- **The H12 audit results**, once both trips run clean. They asked to hear what a real
+  reader audit turns up, and the answer so far is a Critical bug that had nothing to do
+  with reading and everything to do with running.
+- **The result of their tag-registry audit utility** (`utilities/audit-tag-registry.js`).
+  They have never run it; ours is the only world with a real vocabulary, and they
+  explicitly want to know whether its three buckets match the classification we reached
+  by hand. If they disagree, one of us is wrong and they want to know which.
+- **That `getTagCounts` works**, once the cloud is built on it — it is unexercised on
+  their side too.
+- **Our lang file did not exist.** `TYPES.JournalEntryPage.coffee-pub-librarian.codex`
+  was specified in the data-model plan and never built, so the "Add Page" type picker
+  showed the raw key. Worth a line to them only because module-declared subtypes are
+  something their declaration model will generate, and a missing `languages` entry is an
+  easy thing for a generator to forget.
+
+---
+
 ## Standing rule: Blacksmith first
 
 Blacksmith owns the shared surface. Before building anything here, check

@@ -36,7 +36,9 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **H2** | High | Blacksmith API | Tags on `api.tags` — **dev done**; production run + teardown remain | S |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **H12** | High | Quests | Audit the quest HTML reader before A1 converts anything | M |
+| **M13** | Medium | Codex | Players do not see an entry become visible until they reopen | M |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
+| **L10** | Low | Blacksmith API **[EXT]** | Orphan-tag check: deliberately not built, blocked upstream | S |
 | **A1** | Decision | Architecture | Quests are still HTML-parsed; codex is not | L |
 | **A2** | Decision | Architecture | Journal routing bypasses Blacksmith's HookManager | S |
 | **A3** | Decision | Architecture **[EXT]** | No Blacksmith API covers a panel-style entity browser | — |
@@ -55,6 +57,7 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 
 | ID | Was | Recorded as |
 |---|---|---|
+| **C5** | Quest import threw on every quest; setting read but never registered | *Quest import threw on every quest, and reported it as `Invalid JSON.`* |
 | **M12** | Curate the codex tag vocabulary | *Ten merges and two deletions ran, 13/13 against pre-recorded counts; `dwarven` dropped on evidence* |
 | **L6** | Parsers said to be duplicated with Squire | *Verified void — Squire has neither file; no duplication exists* |
 | **L8** | Objective pin tooltip, filed as a half-built feature | *The orphaned objective-pin tooltip is removed, because pin hover already works* |
@@ -438,6 +441,36 @@ about being "blocked on the public Blacksmith Importer API".
 ## Medium
 
 
+### M13 — Players do not see an entry become visible until they reopen the codex
+
+Observed live: a GM reveals a codex entry, and a player with the browser already open
+sees nothing until they close and reopen it. The entry is readable — the permission is
+there — the panel just never learns.
+
+**Not the same mechanism as the tag-hook gap**, though the symptom class is identical.
+Revealing an entry rewrites `ownership` on the page. On the GM's client that fires
+`updateJournalEntryPage` and `manager-journal-routing.js` refreshes the panel. On the
+player's client the page was previously invisible, so it was never in their rendered
+list at all — and a document that has only just become visible is the case least likely
+to arrive as an ordinary update hook.
+
+Worth checking before assuming: whether Foundry delivers `updateJournalEntryPage` to a
+client that gains permission, or whether permission changes surface differently there.
+The answer decides whether this is a missing hook registration or a missing concept —
+the panel currently has no notion of "a page appeared that you could not see before."
+
+**This is the failure mode that does not get reported.** Players do not know an entry
+was revealed, so they cannot notice they are not seeing it; the GM sees it fine on their
+own screen. It was found because someone deliberately sat a player client next to a GM
+one during the M12 sweep, which is the only reason it surfaced at all.
+
+Related: the codex is read by players by design, and revealing entries is currently
+silent — see the "no unlock notification" note in
+`architecture/architecture-codex.md`. If that toast ever returns it would mask this bug
+rather than fix it.
+
+---
+
 ### M8 — Adopt `api.entityList` for participant selection
 
 `window-quest.js` builds party-participant pickers by hand. `api.entityList`
@@ -447,6 +480,40 @@ screen-reader semantics from native inputs, and a documented read contract.
 Note the documented trap when adopting it: use `readFrom(root)` at submit time, not
 `getSelection()`. A list seeded with a current selection whose `attach` silently
 failed hands that seed back and is indistinguishable from a user choice.
+
+---
+
+## Low
+
+### L10 — [EXT] The orphan-tag check is deliberately not built
+
+A check for tags in Blacksmith's registry that no longer belong to anything would be
+useful — it is how the M12 curation sweep was verified — but a correct one cannot be
+written against today's API, so **nothing was built rather than something that would rot.**
+
+An orphan is a registry tag that is neither in use by another module's context nor a
+declared taxonomy entry awaiting first use. Both exclusions are needed and neither is
+reachable:
+
+- `getRegistry()` is world-wide and undifferentiated, with no way to list context keys.
+- `getChoices(contextKey)` needs a key you already know, so our own taxonomy can be
+  excluded and nobody else's can.
+
+Excluding other modules would mean hardcoding context keys we do not own, which passes
+today and silently mis-flags the moment any module adds one.
+
+The first attempt made exactly this mistake in a milder form: it filtered registry tags
+against codex records only, and reported 46 orphans. Three were real. The rest were
+other contexts doing their job (`components`, `essence`, `quest`, `npc`), one was a
+declared pin-taxonomy entry with no uses yet (`sticky`), and three were real campaign
+tags assigned in another context that got misread as debris.
+
+Blacksmith has this recorded as **blocking on their side**, distinct from their
+backlog — scoping a cloud to one context, counting usage per context, and telling an
+unused tag from a foreign one are one missing capability seen three ways, and they
+intend to answer all three from one shape. They will tell us when it lands.
+
+**Do not build an interim version.** A hardcoded key list is the one that looks finished.
 
 ---
 

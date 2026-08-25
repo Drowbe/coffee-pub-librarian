@@ -154,6 +154,17 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to load the codex tag migration:`, error);
     }
 
+    // Quest reader audit (H12), console-run. Round-trips production quest pages and
+    // synthetic import payloads through the writer and the parser, and reports any
+    // field that does not survive. Writes nothing. Delete with the parser at A1.
+    //   game.modules.get('coffee-pub-librarian').api.auditQuestReader.run()
+    try {
+        const audit = await import('./audit-quest-reader.js');
+        module.api.auditQuestReader = audit;
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to load the quest reader audit:`, error);
+    }
+
     // ONE "Librarian" button, opening a secondary bar that carries Codex and Quests.
     //
     // These were two flat tools in the `campaign` group, which spent two slots of

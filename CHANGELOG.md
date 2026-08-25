@@ -27,6 +27,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Quest import threw on every quest, and reported it as `Invalid JSON.`** `game.settings.get(MODULE.ID, 'autoAddPartyMembers')` was called by both quest content writers — `_mergeJournalContent` on the update path and `_generateJournalContentFromImport` on the create path — and that setting was registered nowhere. Foundry's `game.settings.get` throws on an unregistered key rather than returning undefined, so the first quest of any import killed the run.
+
+  **The error message is why this survived.** There is no per-quest try/catch; the outer handler in the import dialog caught the throw and reported `Invalid JSON.` So the failure named the wrong cause, pointed at the user's payload, and the payload was always fine. It came across from Squire without its registration, the same way the dead quest-collapse code and the orphaned pin tooltip did.
+
+  The setting is now registered, world-scoped, **defaulting to on** — every imported or re-imported quest gains the party as participants. Note that this switches on a code path that has never executed in Librarian, so the auto-add behaviour itself is being exercised for the first time.
+
+  **Found by the H12 reader audit on its first run.** Not by reading the writer, which had been read twice that day while chasing a different question, by two passes that both missed it. It surfaced in a synthetic import payload the moment something actually called the function.
+
 - **A tracked debt item was recorded against a duplication that no longer exists.** The tracker carried `utility-base-parser.js` and `utility-journal.js` as knowingly duplicated with Squire, deliberately left alone until Notes moved to Blacksmith. Squire has neither file any more — nothing matching `*pars*` or `*journal*` remains in its `scripts/` — so there is no duplication and the "wait for Notes" reasoning was void.
 
   Closed rather than carried. Two facts worth keeping from the check: `utility-journal.js` is live, supplying `showJournalPicker` to both panels, while `utility-base-parser.js` now has exactly one consumer — `utility-codex-parser.js`, which is itself legacy-only. That makes the base parser a candidate for removal once the legacy codex reader goes, which is a different item from the one that just closed.

@@ -46,6 +46,21 @@ export function registerSettings() {
         default: ['Main Quest', 'Side Quest']
     });
 
+    // Read by both quest content writers -- `_mergeJournalContent` and
+    // `_generateJournalContentFromImport`. It was read at both sites and registered
+    // nowhere, and `game.settings.get` THROWS on an unregistered key, so every quest
+    // import died on its first quest and the outer handler reported `Invalid JSON.`
+    // The JSON was always fine. See TODO C5; it came across from Squire without its
+    // registration.
+    game.settings.register(MODULE.ID, 'autoAddPartyMembers', {
+        name: 'Auto-Add Party Members to Imported Quests',
+        hint: 'When importing quests, add every party member as a participant. Applies to newly imported quests and to quests updated by a re-import.',
+        scope: 'world',
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
     game.settings.register(MODULE.ID, 'headingH2Codex', {
         name: 'Codex',
         hint: 'Where codex entries are stored.',

@@ -36,6 +36,7 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
 | **M12** | Medium | Codex | Curate the tag vocabulary: ~10 merges and 2 deletions | S |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
+| **H12** | High | Quests | Audit the quest HTML reader before A1 converts anything | M |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **A1** | Decision | Architecture | Quests are still HTML-parsed; codex is not | L |
 | **A2** | Decision | Architecture | Journal routing bypasses Blacksmith's HookManager | S |
@@ -194,6 +195,57 @@ shaking out bugs, and note two documented traps up front: pass the context
 you get a silent empty div), and `TagWidget.activate()` is the entire event layer —
 without it the widget renders inert. Filter mode is documented as **not
 implemented**; do not use it.
+
+### H12 — Audit the quest reader before A1 converts anything
+
+**Prerequisite for A1, and it did not exist before Blacksmith's August 2026 rule:**
+
+> A conversion inherits every defect of the reader that feeds it. Converting untyped
+> pages to a declared subtype means reading them with the existing reader and writing
+> the result into the new schema. Any bug in that reader stops being a bug and becomes
+> **data** at the moment of conversion — permanently, because the source it was derived
+> from is gone and no later reader fix can reach it.
+
+So a reader defect must be fixed **before conversion**, not merely before the profile is
+declared. Blacksmith found this sequencing Artificer's recipe migration, where a
+blank-versus-absent bug would have written a wrong apparatus into every converted recipe.
+
+**Our exposure is larger than theirs and they said so.** Artificer's reader matches bolded
+labels. [`utility-quest-parser.js`](../scripts/utility-quest-parser.js) is 425 lines of
+regex and `DOMParser` over HTML the module generated itself, inferring status, category,
+task state, GM hints, treasure and participants. More inference means more surface to
+inherit from.
+
+**The one we already know about.** The quest import writes the literal `Not Started`
+([`panel-quest.js`](../scripts/panel-quest.js), `_generateJournalContentFromImport`), while
+`normalizeQuestStatus` maps that string to `Available`. So a value we write is one our own
+reader immediately renames. Harmless while both live in markup we are about to delete —
+and *not* harmless at conversion, because the reader carrying the disagreement is the one
+feeding it. Fix before conversion.
+
+**The point of the audit is that it is probably not alone.** Do not treat the known
+defect as the finding. Areas worth exercising rather than reading, per everything this
+tracker has learned the hard way:
+
+- **Blank versus absent**, throughout. Testing a parsed value cannot tell you whether the
+  thing was there; presence has to be tracked separately from content at the point of
+  reading, or the two collapse and one silently takes the other's behaviour. Our
+  `expandedDetails` rule (absent preserves, present-and-empty replaces) is the earliest
+  known instance across the suite — Blacksmith's `absentMeans` exists because of it, and
+  Artificer's apparatus label is the third. Assume the quest reader has its own.
+- **The `||GM hint||` and `((Treasure))` encodings** inside task text, which A1 deletes.
+  Check what the reader does with malformed or nested markers before that behaviour
+  becomes a schema field.
+- **Status and category normalization**, both directions. Round-trip real production
+  pages through write-then-read and diff.
+- **Objective state**, encoded as `<s>` / `<code>` / `<em>` and *edited* by rewriting the
+  HTML.
+
+**Method matters here.** Reading the parser is not the audit. Round-trip production data
+through it and diff. Every defect this suite has found in a year was readable in source the
+whole time and surfaced only when something exercised it.
+
+---
 
 ### H6 — Adopt `api.importer`
 
@@ -478,6 +530,10 @@ That is most of what a quest data model is, and Blacksmith's own advice is to wa
 building quests against declarations once beats building them twice, and a schema
 designed now would be a third shape needing reconciliation against a declaration
 shape that does not exist yet.
+
+**Also gated on H12.** The quest reader must be audited and fixed before conversion,
+not merely before declaration — a reader defect becomes permanent data the moment pages
+are converted. That is new, and it sits between here and any migration.
 
 **Recommendation: wait, and target the declaration.** The asymmetry decides it —
 building now risks designing a schema then reconciling it; building later costs delay

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **Codex tags moved out of Librarian and into Blacksmith's central tag store.** `api-tags.md` is explicit — *"All tag assignments are stored in a Blacksmith world setting. Consuming modules do not store tags in their own record data"* — and `system.tags` was a direct contradiction of it. 342 entries migrated in the development world; `system.tags` is now empty on every codex page and the central store is the only copy.
+
+  Reads and writes were converted across all six surfaces that touch tags: browser cards, the tag cloud and search, the Edit Entry window, the journal page's own view and edit sheets, the importer, and the canvas pin manager. The export needed no change — it builds from the same entry data the panel does, so it followed automatically.
+
+  **The record id is the page uuid, and that was the one decision worth getting right.** `getRecordsByTag()` returns opaque strings, and a uuid is the only generic route back to a Foundry document; a page id would force every reader to scan journals to resolve one. Two other arguments were offered for it during design and both turned out to be false — recorded in `utility-tags.js` so neither gets reinvented.
+
+  **Pin tags now read the entry rather than the category.** A codex pin used to derive its tags from its category slug alone. It now carries the entry's own tags plus that slug, strictly one-directional entity → pin: Blacksmith's pin mirror is clobbering, so anything written against a pin's own record id is discarded by the next pin update. The category slug is kept alongside rather than replaced, because it is what pin filtering has always keyed on and an untagged entry would otherwise produce a pin with no tags at all.
+
+  **The importer carries tags across the legacy-page conversion.** Replacing an untyped `text` page with a typed one deletes and recreates it, so the uuid changes and the assignment would orphan silently. Tags are moved to the new id before the old row is dropped — and the delete comes last deliberately: an interruption then leaves the tags on both ids, duplicated and recoverable, where the reverse order loses them.
+
+  **Tag changes fire no journal hook, so the browser needed a new signal.** With tags off the document, editing one no longer triggers `updateJournalEntryPage` and the open browser had nothing to react to. It now listens to `blacksmith.tags.changed` — plus Foundry's `updateSetting` for the tag settings, because Blacksmith's tag hooks fire only on the client that made the call. Without the second listener every other connected player keeps rendering a stale vocabulary indefinitely, which matters here because the codex is read by players. The `updateSetting` half is a workaround for a gap Blacksmith has recorded as theirs; it is marked for removal in the code.
+
+  **The tag vocabulary was curated afterwards, not before.** Blacksmith's GM rename and delete propagate across every record, so merging `bcod` into `black-cult-of-the-dragon` is one call where hand-editing 36 entries is not. Ten merges and two deletions ran against pre-recorded expected counts, all thirteen matching. `dwarven` → `dwarf` was dropped rather than merged: all eight `dwarven` records are objects and places and all the people are under `dwarf`, so the merge would have collapsed a real distinction irreversibly — rename merges and does not unmerge.
+
+  `system.tags` remains in the data model schema. Removing the field would make any unmigrated page fail validation, so it goes when the migration tooling does.
+
 ### Fixed
 
 - **A tracked debt item was recorded against a duplication that no longer exists.** The tracker carried `utility-base-parser.js` and `utility-journal.js` as knowingly duplicated with Squire, deliberately left alone until Notes moved to Blacksmith. Squire has neither file any more — nothing matching `*pars*` or `*journal*` remains in its `scripts/` — so there is no duplication and the "wait for Notes" reasoning was void.

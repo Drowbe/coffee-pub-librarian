@@ -120,9 +120,15 @@ export async function setCodexTags(pageUuid, tags) {
  *
  * The codex conversion path deletes a legacy `text` page and creates a typed
  * one, so the uuid changes and the assignment would orphan silently. Blacksmith
- * has no `moveRecord` yet and offered to add one if a consumer needed it -- we
- * are that consumer. Keep this as the single call site so it can collapse into
- * theirs later.
+ * has no `moveRecord` yet; ours is the confirmed caller, and a second consumer
+ * hand-rolling the same three calls is their trigger to build it. Keep this as
+ * the single call site so it can collapse into theirs later.
+ *
+ * **THE DELETE COMES LAST, AND THAT ORDER IS NOT COSMETIC.** An interruption
+ * between the write and the delete leaves the tags on BOTH ids -- duplicated and
+ * recoverable. Reverse it and the same interruption loses them entirely. Do not
+ * reorder these two calls, and do not collapse them into anything that reads
+ * tidier at the cost of the ordering.
  *
  *
  * @param {string} oldUuid

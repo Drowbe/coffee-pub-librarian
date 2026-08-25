@@ -76,6 +76,25 @@ export function initJournalRouting() {
         ['blacksmith.tags.changed', Hooks.on('blacksmith.tags.changed', ({ contextKey } = {}) => {
             if (contextKey !== CODEX_TAG_CONTEXT) return;
             refreshCampaignPanel('codex');
+        })],
+        // ...and the same again from the other direction, because the hook above only
+        // ever fires on the client that made the change.
+        //
+        // Blacksmith's three tag hooks are `Hooks.callAll` with no fan-out; their socket
+        // is a GM write-proxy, not a broadcast. The DATA reaches every client, because
+        // Foundry pushes the world setting, but nobody else is told a tag changed. So a
+        // player with the codex open keeps rendering the old vocabulary indefinitely --
+        // most visibly after a bulk rename sweep, where every connected player would show
+        // tags that no longer exist. Ours is a player-read codex, so this is not an edge.
+        //
+        // `updateSetting` DOES reach every client. This is a workaround for a gap
+        // Blacksmith has recorded as theirs to fix; when the hooks fan out, delete it and
+        // keep the handler above.
+        ['updateSetting', Hooks.on('updateSetting', (setting) => {
+            const key = setting?.key ?? '';
+            if (key !== 'coffee-pub-blacksmith.tagAssignments'
+                && key !== 'coffee-pub-blacksmith.tagRegistry') return;
+            refreshCampaignPanel('codex');
         })]
     ];
 }

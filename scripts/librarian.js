@@ -142,6 +142,18 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to register the codex window:`, error);
     }
 
+    // Codex tag migration (H2), GM-run from the console rather than automatically:
+    // it rewrites tag data on every codex page and the GM should see the dry run
+    // first. Deliberately not wired to a hook or a menu item — this runs once.
+    //   game.modules.get('coffee-pub-librarian').api.migrateCodexTags.dryRun()
+    //   game.modules.get('coffee-pub-librarian').api.migrateCodexTags.migrate()
+    try {
+        const { dryRun, migrate, reportVocabulary } = await import('./migrate-codex-tags.js');
+        module.api.migrateCodexTags = { dryRun, migrate, reportVocabulary };
+    } catch (error) {
+        console.error(`${MODULE.TITLE} | Failed to load the codex tag migration:`, error);
+    }
+
     // ONE "Librarian" button, opening a secondary bar that carries Codex and Quests.
     //
     // These were two flat tools in the `campaign` group, which spent two slots of

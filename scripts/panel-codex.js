@@ -2,6 +2,7 @@ import { MODULE, TEMPLATES, getCodexCategoryIcon } from './const.js';
 import { CodexParser } from './utility-codex-parser.js';
 import { CODEX_PAGE_TYPE } from './data/codex-page-model.js';
 import { normalizeName, buildCodexPageIndex, renderCodexRef } from './utility-codex-index.js';
+import { getCodexTags } from './utility-tags.js';
 import { copyToClipboard, getNativeElement, renderTemplate, getTextEditor, escapeHtml, getPartyActors, hasPrimaryParty, showBlacksmithWait, fillCampaignPlaceholders } from './helpers.js';
 import { trackModuleTimeout, clearTrackedTimeout, moduleDelay } from './timer-utils.js';
 import { showJournalPicker } from './utility-journal.js';
@@ -459,7 +460,11 @@ export class CodexPanel {
                         // ANY entry is added or renamed, so caching a resolution would
                         // leave "Phlan" unlinked after "Moonsea" is created.
                         related: Array.from(sys.related || []),
-                        tags: Array.from(sys.tags || []),
+                        // Tags live in Blacksmith's central store, not in `system.tags`
+                        // -- `api-tags.md`: "Consuming modules do not store tags in
+                        // their own record data." Keyed by page uuid; see
+                        // utility-tags.js for why the uuid and not the page id.
+                        tags: getCodexTags(page.uuid),
                         hasExpandedDetails: sys.hasExpandedDetails,
                         DiscoveredBy: (sys.discoveredBy || []).join(', '),
                         pinId: page.getFlag(MODULE.ID, 'pinId') ?? null

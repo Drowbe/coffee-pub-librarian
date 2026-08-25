@@ -101,6 +101,35 @@ discussion, and the **move of the export/subtype hazard** into
 the codex browser, not as pending release work; the items above it that remain open
 are tracked in [At a glance](#at-a-glance).
 
+### MUST DO on the next push to production: run the codex tag migration
+
+**Nothing in the module will prompt for this.** The codex tag migration (**H2**) is
+console-run — no macro, no menu item, no detect-and-prompt, and **no fallback read
+from `system.tags`**. That was a deliberate trade: Librarian has exactly two worlds,
+dev and production, both the maintainer's, so building discoverability for an
+install base of zero was not worth the code. The cost of the trade is that this
+checklist item is the only thing standing between a production push and a codex
+that displays **no tags at all**, silently, on every entry.
+
+In the production world, as GM, after the build is installed:
+
+1. **F5** to reload — `migrate-codex-tags.js` is an ES module and will not exist in
+   a running session.
+2. **F12** → Console. Not a Script macro: Foundry's macro editor has mangled a
+   pasted comment block into code before.
+3. `await game.modules.get('coffee-pub-librarian').api.migrateCodexTags.dryRun()`
+   — writes nothing. Check `codexPages` is the number you expect and the tag
+   vocabulary looks real.
+4. `await game.modules.get('coffee-pub-librarian').api.migrateCodexTags.migrate()`
+   — safe to re-run, safe to interrupt. `failed` should be `0`.
+5. Open the codex and confirm tags render.
+
+**Then delete the migration.** Once dev and production are both migrated and
+confirmed there is no third world, so `scripts/migrate-codex-tags.js` and its
+`module.api.migrateCodexTags` wiring come out, along with this section. Migration
+tooling that outlives its purpose is exactly how **A8** happened — a runbook and two
+macros that silently stopped being runnable and were only found much later.
+
 - [ ] Confirm production is on **Blacksmith 13.19.0** before pushing Librarian —
       the manifest minimum was raised to match what the code now uses.
 - [ ] Smoke-test what changed. The codex browser is a different window class now,

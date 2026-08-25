@@ -856,12 +856,21 @@ export class QuestWindow extends BlacksmithWindowBaseV2 {
         const browseImageButton = root.querySelector('.quest-browse-image');
         if (browseImageButton) {
             const handler = async () => {
-                if (typeof FilePicker !== 'function') {
+                // v13 namespaced this; the bare global is a deprecation shim that
+                // Foundry removes in v15 (client.mjs maps it to
+                // `applications.apps.FilePicker.implementation`, since: 13, until: 15).
+                // `.implementation` rather than the class itself, because that is what
+                // the global resolved to and it respects a system's subclass.
+                // Fall back to the global so this keeps working on any build where the
+                // namespaced path is absent.
+                const PickerClass = foundry.applications?.apps?.FilePicker?.implementation
+                    ?? globalThis.FilePicker;
+                if (typeof PickerClass !== 'function') {
                     ui.notifications.warn('Image browser is unavailable.');
                     return;
                 }
 
-                const picker = new FilePicker({
+                const picker = new PickerClass({
                     type: 'imagevideo',
                     current: this.quest.img || '',
                     callback: (path) => {

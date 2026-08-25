@@ -64,7 +64,6 @@ export function getCodexCategoryIcon(category) {
 export const TEMPLATES = {
     PANEL_QUEST: `modules/${MODULE.ID}/templates/panel-quest.hbs`,
     WINDOW_QUEST: `modules/${MODULE.ID}/templates/window-quest.hbs`,
-    TOOLTIP_PIN_QUEST_OBJECTIVE: `modules/${MODULE.ID}/templates/tooltip-pin-quests-objective.hbs`,
     PARTIAL_QUEST_ENTRY: `modules/${MODULE.ID}/templates/partials/quest-entry.hbs`,
     PANEL_CODEX: `modules/${MODULE.ID}/templates/panel-codex.hbs`,
     PANEL_CODEX_FILTERS: `modules/${MODULE.ID}/templates/panel-codex-filters.hbs`,

@@ -104,8 +104,13 @@ export class DataExportWindow extends BlacksmithWindowBaseV2 {
 
     _download() {
         try {
-            if (typeof saveDataToFile === 'function') {
-                saveDataToFile(this.data, 'application/json;charset=utf-8', this.filename);
+            // v13 namespaced this as `foundry.utils.saveDataToFile`; the bare global
+            // is a deprecation shim removed in v15 (since: 13, until: 15). The Blob
+            // fallback below already covered the global being absent, so this one
+            // degraded rather than broke -- but it degraded to the worse path.
+            const save = foundry.utils?.saveDataToFile ?? globalThis.saveDataToFile;
+            if (typeof save === 'function') {
+                save(this.data, 'application/json;charset=utf-8', this.filename);
             } else {
                 const blob = new Blob([this.data], { type: 'application/json;charset=utf-8' });
                 const url = URL.createObjectURL(blob);

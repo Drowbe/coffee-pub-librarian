@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The orphaned objective-pin tooltip is removed, because pin hover already works.** Three assets had no code rendering them — `templates/tooltip-pin-quests-objective.hbs`, `TEMPLATES.TOOLTIP_PIN_QUEST_OBJECTIVE`, and `styles/quest-markers.css` — kept on the belief that hovering an objective pin showed nothing and the design was worth preserving.
+
+  **That belief was wrong.** Both pin types set `text` and `textDisplay: 'hover'`, and Blacksmith's pin renderer honours it: a quest pin reads `Quest 3: Recover the Wayfinder casing.` and an objective pin reads `Quest 3.02: Ask around the Laughing Goblin.` — the objective's own text, numbered against its quest. The "shows nothing" note described Squire, where the tooltip was hand-rolled and there was no Pins API to fall back on; it did not survive the migration and was never re-checked.
+
+  Implementing the template would have replaced a working, Blacksmith-rendered label with a bespoke one, against the Blacksmith-first rule, and would have bypassed the per-pin-type design properties users configure — `textLayout`, `textDisplay`, `textColor`, `textSize`, `textMaxLength`. A GM who sets pins to `textDisplay: 'always'` would have got our tooltip instead.
+
+  `styles/quest-markers.css` went in full: every rule in it was tooltip styling, its only other content a comment noting pins are PIXI-rendered now. Its `@import` is removed from `default.css`. Richer hover content — objective state, treasure, GM hints — remains a legitimate future feature, but it is a new one to design against the Pins API's hover surface, and under the standing rule it belongs upstream rather than as a parallel tooltip.
+
+- **Quest category collapse was dead code, not a redundant pass.** It was filed as a post-render pass duplicating what the template already did. It was worse: every quest section the template renders carries `quest-section--no-titlebar`, and all four sites that applied `questCollapsedCategories` skipped exactly those sections — so the feature could never fire. The click handler that wrote the flag was bound to `.quest-category`, which the template does not render at all, so nothing ever wrote it either. It arrived from Squire in that state and has never worked in Librarian.
+
+  Removed: the writer, all four apply passes, a `classList.remove('collapsed')` for a class nothing adds, the now-callerless `_findQuestSectionByStatus`, and four orphaned `.quest-category` / `.quest-section.collapsed` rules in `panel-quest.css`. The `questCollapsedCategories` user flag is left in place, inert. Restoring per-category collapse is a feature decision, not a bug fix — the sections are deliberately title-bar-less.
+
+- **Three v13 deprecation shims replaced before v15 removes them.** `FilePicker` in the codex and quest editors, and `saveDataToFile` in the export window, were bare globals that Foundry maps through a compatibility table (`since: 13, until: 15`).
+
+  `FilePicker` now resolves `foundry.applications.apps.FilePicker.implementation` — `.implementation` specifically, because that is what the global resolved to and it respects a system's subclass — and `saveDataToFile` resolves `foundry.utils.saveDataToFile`. Each keeps a fallback to the old global so any build lacking the namespaced path still works. The `FilePicker` sites were guarded such that failure meant a silently missing feature; `saveDataToFile` already had a Blob fallback, so it would have degraded to the worse path rather than breaking.
+
 - **Quest scene pins were exported empty and imported into nothing.** Both halves of the feature had been reading and writing `scene.getFlag('coffee-pub-librarian', 'questPins')` — a flag nothing has written since quest pins moved to Blacksmith's Pins API. The only writer left in the module was the pin importer itself.
 
   The consequences compounded. **Export** emitted `"scenePins": {}` in any world whose pins were placed after that migration, while the summary reported `Scenes with Pins: 0` and the file wrote successfully — a backup that looks complete and is not, discovered only at restore. **Import** wrote merged pin records back into the same dead flag, so restored pins were stored where nothing renders from and never appeared on the canvas.

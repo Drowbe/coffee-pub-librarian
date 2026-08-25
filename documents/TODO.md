@@ -35,11 +35,8 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 |---|---|---|---|---|
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
-| **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
-| **L1** | Low | v14 | Bare `FilePicker` and `saveDataToFile` globals | S |
 | **L6** | Low | Debt | `utility-base-parser.js` / `utility-journal.js` duplicated with Squire | — |
-| **L8** | Low | Quests | Objective pin tooltip: assets exist, nothing renders them | S |
 | **A1** | Decision | Architecture | Quests are still HTML-parsed; codex is not | L |
 | **A2** | Decision | Architecture | Journal routing bypasses Blacksmith's HookManager | S |
 | **A3** | Decision | Architecture **[EXT]** | No Blacksmith API covers a panel-style entity browser | — |
@@ -58,6 +55,9 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 
 | ID | Was | Recorded as |
 |---|---|---|
+| **L8** | Objective pin tooltip, filed as a half-built feature | *The orphaned objective-pin tooltip is removed, because pin hover already works* |
+| **M2** | Quest category collapse, filed as a redundant pass | *Quest category collapse was dead code, not a redundant pass* |
+| **L1** | Bare `FilePicker` and `saveDataToFile` globals | *Three v13 deprecation shims replaced before v15 removes them* |
 | **C4** | Quest scene pins exported empty and imported into a dead flag | *Quest scene pins were exported empty and imported into nothing* |
 | **C1** | Window registry opener called a function that no longer existed | *The Blacksmith window registry could not open either browser* |
 | **C2** | `prompt-codex.txt` never shipped; Copy Template copied its own error string | *Copy Template in the codex importer copied an error message* |
@@ -355,20 +355,6 @@ about being "blocked on the public Blacksmith Importer API".
 
 ## Medium
 
-### M2 — Redundant collapse restore in the quest panel
-
-`panel-quest.js` runs a post-render pass that iterates every key in
-`questCollapsedCategories` and matches sections with `.trim()`, on top of the
-template already applying collapse by exact key.
-
-**Latent, not live**, only because quest keys come from a fixed status set
-(`Active`/`Complete`/…) rather than user-authored names, so they never got
-polluted. The codex equivalent *did* get polluted and overrode real state on every
-render — which is why pinning an entry appeared to collapse its category.
-
-Delete the redundant pass; the template is correct. The same trim-match appears at
-three sites (search for `attrValue.trim() === category.trim()`).
-
 ### M8 — Adopt `api.entityList` for participant selection
 
 `window-quest.js` builds party-participant pickers by hand. `api.entityList`
@@ -383,22 +369,6 @@ failed hands that seed back and is indistinguishable from a user choice.
 
 ## Low
 
-### L1 — v14 deprecation hazards
-
-The manifest declares `"maximum": "14"`. Three bare globals are v13 deprecation
-shims that will not survive it:
-
-- `FilePicker` — [`window-codex.js:849`](../scripts/window-codex.js#L849),
-  [`window-quest.js:855`](../scripts/window-quest.js#L855). Use
-  `foundry.applications.apps.FilePicker`.
-- `saveDataToFile` — [`window-data-export.js:101`](../scripts/window-data-export.js#L101).
-  Use `foundry.utils.saveDataToFile`. (It is already guarded with a Blob fallback,
-  so this one degrades rather than breaks.)
-
-Both `FilePicker` sites are guarded with `typeof FilePicker !== 'function'`, so the
-failure mode is a silent missing feature rather than an error. Blacksmith ships
-`documentation/plans/migration-v14.md` — read it before doing this.
-
 ### L6 — Duplicated parsers with Squire
 
 `utility-base-parser.js` and `utility-journal.js` exist in both modules. Squire
@@ -407,24 +377,6 @@ Blacksmith — not before. No action now; recorded so the duplication is deliber
 rather than forgotten.
 
 ---
-
-### L8 — The objective pin tooltip is designed but not implemented
-
-Three assets exist and nothing renders them:
-
-- [`templates/tooltip-pin-quests-objective.hbs`](../templates/tooltip-pin-quests-objective.hbs)
-- `TEMPLATES.TOOLTIP_PIN_QUEST_OBJECTIVE` in [`const.js:67`](../scripts/const.js#L67)
-- the `.quest-tooltip-container` block in [`quest-markers.css:14`](../styles/quest-markers.css#L14)
-
-The code that drove them came across from Squire broken — it referenced four
-identifiers `helpers.js` never imported and a `TEMPLATES.TOOLTIP_QUEST` key that
-does not exist — and was removed rather than left looking functional. The assets
-were kept deliberately: they are the design, and the template is well-formed.
-
-So this is a real half-finished feature, not debris. Hovering an objective pin on
-the canvas shows nothing today. Either implement it against
-`manager-quest-pins.js` — which already has the `pins.on('hover')` surface it would
-need — or delete all three assets. Do not leave it as-is indefinitely.
 
 ## Architecture decisions
 

@@ -1977,20 +1977,6 @@ export class QuestPanel {
     }
 
     /**
-     * Find a quest section by status without inserting external text into a CSS selector.
-     * @private
-     */
-    _findQuestSectionByStatus(html, status) {
-        const nativeHtml = getNativeElement(html);
-        const normalizedStatus = String(status ?? '').trim();
-        if (!nativeHtml || !normalizedStatus) return null;
-
-        return Array.from(nativeHtml.querySelectorAll('.quest-section[data-status]')).find(section => {
-            return String(section.getAttribute('data-status') ?? '').trim() === normalizedStatus;
-        }) || null;
-    }
-
-    /**
      * Apply status filter to show/hide quest sections
      * @param {HTMLElement} html - The quest container element
      * @private
@@ -2151,17 +2137,6 @@ export class QuestPanel {
                         const hasVisibleEntries = section.querySelector('.quest-entry[style*="display: block"], .quest-entry:not([style*="display: none"])') !== null;
                         section.style.display = hasVisibleEntries ? '' : 'none';
                     });
-                } else {
-                    // When search is cleared, restore original collapsed states
-                    const collapsedCategories = game.user.getFlag(MODULE.ID, 'questCollapsedCategories') || {};
-                    for (const [category, collapsed] of Object.entries(collapsedCategories)) {
-                        if (collapsed) {
-                            const section = this._findQuestSectionByStatus(nativeHtml, category);
-                            if (section && !section.classList.contains('quest-section--no-titlebar')) {
-                                section.classList.add('collapsed');
-                            }
-                        }
-                    }
                 }
                 this._applyStatusFilter(nativeHtml);
             });
@@ -2308,24 +2283,6 @@ export class QuestPanel {
                     section.style.display = '';
                 });
                 
-                // If we have tags selected, expand all categories
-                if (this.filters.tags.length > 0) {
-                    nativeHtml.querySelectorAll('.quest-section').forEach(section => {
-                        section.classList.remove('collapsed');
-                    });
-                } else {
-                    // If no tags selected, restore original collapsed states
-                    const collapsedCategories = game.user.getFlag(MODULE.ID, 'questCollapsedCategories') || {};
-                    for (const [category, collapsed] of Object.entries(collapsedCategories)) {
-                        if (collapsed) {
-                            const section = this._findQuestSectionByStatus(nativeHtml, category);
-                            if (section && !section.classList.contains('quest-section--no-titlebar')) {
-                                section.classList.add('collapsed');
-                            }
-                        }
-                    }
-                }
-                
                 this.render(this.element);
             });
         });
@@ -2355,17 +2312,6 @@ export class QuestPanel {
                 nativeHtml.querySelectorAll('.quest-section').forEach(section => {
                     section.style.display = '';
                 });
-                
-                // Restore original collapsed states
-                const collapsedCategories = game.user.getFlag(MODULE.ID, 'questCollapsedCategories') || {};
-                for (const [category, collapsed] of Object.entries(collapsedCategories)) {
-                    if (collapsed) {
-                        const section = this._findQuestSectionByStatus(nativeHtml, category);
-                        if (section && !section.classList.contains('quest-section--no-titlebar')) {
-                            section.classList.add('collapsed');
-                        }
-                    }
-                }
                 
                 this.render(this.element);
             });
@@ -2403,23 +2349,6 @@ export class QuestPanel {
                 game.user.setFlag(MODULE.ID, 'questTagCloudCollapsed', !isCollapsed);
             });
         }
-
-        // Category collapse/expand
-        // v13: Use nativeHtml instead of html
-        nativeHtml.querySelectorAll('.quest-category').forEach(category => {
-            const newCategory = category.cloneNode(true);
-            category.parentNode?.replaceChild(newCategory, category);
-            newCategory.addEventListener('click', (event) => {
-                const section = event.currentTarget.closest('.quest-section');
-                if (!section) return;
-                section.classList.toggle('collapsed');
-                const status = section.dataset.status;
-                const collapsed = section.classList.contains('collapsed');
-                const collapsedCategories = game.user.getFlag(MODULE.ID, 'questCollapsedCategories') || {};
-                collapsedCategories[status] = collapsed;
-                game.user.setFlag(MODULE.ID, 'questCollapsedCategories', collapsedCategories);
-            });
-        });
 
         // Link clicks
         // v13: Use nativeHtml instead of html
@@ -3465,7 +3394,6 @@ export class QuestPanel {
         await this._checkAndNotifyPinnedQuest();
 
         // Get collapsed states
-        const collapsedCategories = game.user.getFlag(MODULE.ID, 'questCollapsedCategories') || {};
         const isTagCloudCollapsed = game.user.getFlag(MODULE.ID, 'questTagCloudCollapsed') || false;
         // Get pinned quests
         const pinnedQuests = await game.user.getFlag(MODULE.ID, 'pinnedQuests') || {};
@@ -3657,16 +3585,13 @@ export class QuestPanel {
             });
         }
 
-        // Apply collapsed states to sections
-        // v13: Use safer selector approach to handle values with newlines/whitespace
-        for (const [status, collapsed] of Object.entries(collapsedCategories)) {
-            if (collapsed) {
-                const section = this._findQuestSectionByStatus(questContainer, status);
-                if (section && !section.classList.contains('quest-section--no-titlebar')) {
-                    section.classList.add('collapsed');
-                }
-            }
-        }
+        // NOTE: quest sections have no per-category collapse. Every section the
+        // template renders carries `quest-section--no-titlebar`, and each of the four
+        // sites that used to apply `questCollapsedCategories` skipped exactly those --
+        // so the feature could never fire. The click handler that wrote the flag was
+        // bound to `.quest-category`, which the template does not render either. All
+        // of it came across from Squire that way and has never worked here. Removed;
+        // the user flag is left in place, inert. See TODO M2.
 
         // Restore the scroll position captured before the innerHTML swap, now that all
         // collapse/expand states have been reapplied and the content height is final.

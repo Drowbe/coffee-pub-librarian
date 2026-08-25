@@ -36,7 +36,6 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
-| **L6** | Low | Debt | `utility-base-parser.js` / `utility-journal.js` duplicated with Squire | — |
 | **A1** | Decision | Architecture | Quests are still HTML-parsed; codex is not | L |
 | **A2** | Decision | Architecture | Journal routing bypasses Blacksmith's HookManager | S |
 | **A3** | Decision | Architecture **[EXT]** | No Blacksmith API covers a panel-style entity browser | — |
@@ -55,6 +54,7 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 
 | ID | Was | Recorded as |
 |---|---|---|
+| **L6** | Parsers said to be duplicated with Squire | *Verified void — Squire has neither file; no duplication exists* |
 | **L8** | Objective pin tooltip, filed as a half-built feature | *The orphaned objective-pin tooltip is removed, because pin hover already works* |
 | **M2** | Quest category collapse, filed as a redundant pass | *Quest category collapse was dead code, not a redundant pass* |
 | **L1** | Bare `FilePicker` and `saveDataToFile` globals | *Three v13 deprecation shims replaced before v15 removes them* |
@@ -367,17 +367,6 @@ failed hands that seed back and is indistinguishable from a user choice.
 
 ---
 
-## Low
-
-### L6 — Duplicated parsers with Squire
-
-`utility-base-parser.js` and `utility-journal.js` exist in both modules. Squire
-still needs them for Notes. They converge or diverge for real when Notes moves to
-Blacksmith — not before. No action now; recorded so the duplication is deliberate
-rather than forgotten.
-
----
-
 ## Architecture decisions
 
 Not bugs. Each needs a call before the code that depends on it is written.
@@ -540,8 +529,9 @@ items it closed (H8, H9, H10, M1) are in [Closed](#closed). Search was already l
 DOM filtering rather than a re-render, which is the same choice Compendium Search
 makes and for the same reason.
 
-**`panel-quest.js` still does the old thing**, and has 17 clone-and-rebind sites and
-the same JSON round-trip. It is not filed as its own item because **A1** and the
+**`panel-quest.js` still does the old thing**, and has 16 clone-and-rebind sites and
+the same JSON round-trip ([`panel-quest.js:3545`](../scripts/panel-quest.js#L3545)).
+(Counts verified 2026-08-25; an earlier draft said 17.) It is not filed as its own item because **A1** and the
 master-detail layout rewrite that path anyway — but if quests get their two-pane
 view before A1 lands, the delegation work has to come with it. A left-pane
 selection that rebuilds and re-binds the whole list will feel worse than the

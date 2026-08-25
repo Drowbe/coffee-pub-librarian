@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **A tracked debt item was recorded against a duplication that no longer exists.** The tracker carried `utility-base-parser.js` and `utility-journal.js` as knowingly duplicated with Squire, deliberately left alone until Notes moved to Blacksmith. Squire has neither file any more — nothing matching `*pars*` or `*journal*` remains in its `scripts/` — so there is no duplication and the "wait for Notes" reasoning was void.
+
+  Closed rather than carried. Two facts worth keeping from the check: `utility-journal.js` is live, supplying `showJournalPicker` to both panels, while `utility-base-parser.js` now has exactly one consumer — `utility-codex-parser.js`, which is itself legacy-only. That makes the base parser a candidate for removal once the legacy codex reader goes, which is a different item from the one that just closed.
+
 - **The orphaned objective-pin tooltip is removed, because pin hover already works.** Three assets had no code rendering them — `templates/tooltip-pin-quests-objective.hbs`, `TEMPLATES.TOOLTIP_PIN_QUEST_OBJECTIVE`, and `styles/quest-markers.css` — kept on the belief that hovering an objective pin showed nothing and the design was worth preserving.
 
   **That belief was wrong.** Both pin types set `text` and `textDisplay: 'hover'`, and Blacksmith's pin renderer honours it: a quest pin reads `Quest 3: Recover the Wayfinder casing.` and an objective pin reads `Quest 3.02: Ask around the Laughing Goblin.` — the objective's own text, numbered against its quest. The "shows nothing" note described Squire, where the tooltip was hand-rolled and there was no Pins API to fall back on; it did not survive the migration and was never re-checked.

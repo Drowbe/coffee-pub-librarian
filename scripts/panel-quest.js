@@ -23,7 +23,7 @@ import {
 import { copyToClipboard, getNativeElement, renderTemplate, getTextEditor, getPartyActors, showBlacksmithWait, fillCampaignPlaceholders, showLibrarianToast } from './helpers.js';
 import { trackModuleTimeout, clearTrackedTimeout, moduleDelay } from './timer-utils.js';
 import { showJournalPicker } from './utility-journal.js';
-import { resolveEntries, reportResolution } from './utility-resolver.js';
+import { resolveEntries, reportResolution, isSameParticipant } from './utility-resolver.js';
 
 const QUEST_PIN_BACKGROUND     = '#682008';
 const OBJECTIVE_PIN_BACKGROUND = '#8c2d0d';
@@ -3651,20 +3651,15 @@ export class QuestPanel {
                     });
                 }
                 
-                // PRESERVE EXISTING TASK STATE
+                // PRESERVE EXISTING TASK STATE, falling back to what the import supplies.
+                // The fallback matters: without it a task with no counterpart on the page
+                // — a newly added one — silently landed as `active` however the payload
+                // described it. Existing state still wins, because a GM ticking a task off
+                // must not be undone by a re-import. Shared with the create path so the
+                // two encodings cannot drift. See TODO C7.
                 const existingTaskState = existingState.tasks[index];
-                if (existingTaskState) {
-                    // Wrap in appropriate state tags based on existing state
-                    if (existingTaskState.state === 'completed') {
-                        taskText = `<s>${taskText}</s>`;
-                    } else if (existingTaskState.state === 'failed') {
-                        taskText = `<code>${taskText}</code>`;
-                    } else if (existingTaskState.state === 'hidden') {
-                        taskText = `<em>${taskText}</em>`;
-                    }
-                    // If state is 'active', no wrapping needed
-                }
-                
+                taskText = this._wrapTaskState(taskText, existingTaskState?.state ?? t.state);
+
                 content += `<li>${taskText}</li>\n`;
             });
             content += `</ul>\n\n`;
@@ -3709,8 +3704,20 @@ export class QuestPanel {
         }
         
         // Status - PRESERVE EXISTING STATUS
-        const statusToUse = existingState.status || importedQuest.status || 'Not Started';
+        //
+        // Normalized, and defaulting to a value the reader actually produces. This wrote
+        // the raw literal `Not Started`, which `normalizeQuestStatus` maps to `Available`
+        // — so a value this writer emitted was one our own reader immediately renamed,
+        // and the create path a few hundred lines below normalized while this one did
+        // not. Two writers, two different markup outputs for the same quest, decided by
+        // whether the page already existed.
+        const statusToUse = normalizeQuestStatus(existingState.status || importedQuest.status || 'Available');
         content += `<p><strong>Status:</strong> ${statusToUse}</p>\n\n`;
+        // The reader parses Progress and neither writer emitted it. See TODO C7.
+        const progressToUse = Number(existingState.progress ?? importedQuest.progress ?? 0);
+        if (progressToUse > 0) {
+            content += `<p><strong>Progress:</strong> ${progressToUse}%</p>\n\n`;
+        }
         
         // Participants - PRESERVE EXISTING PARTICIPANTS
         const participantsToUse = existingState.participants.length > 0 ? existingState.participants : importedQuest.participants;
@@ -3719,10 +3726,10 @@ export class QuestPanel {
         if (game.settings.get(MODULE.ID, 'autoAddPartyMembers')) {
             const partyActors = getPartyActors();
             for (const actor of partyActors) {
-                const alreadyPresent = participantsToUse.some(p => {
-                    if (typeof p === 'string') return p === actor.name;
-                    return (p.uuid && p.uuid === actor.uuid) || (p.name && p.name === actor.name);
-                });
+                // `isSameParticipant`, not a raw compare: participants are stored as
+                // enriched link strings, so `p === actor.name` was always false and
+                // every party member was re-added on every import. See TODO C6.
+                const alreadyPresent = participantsToUse.some(p => isSameParticipant(p, actor));
                 if (!alreadyPresent) {
                     participantsToUse.push({
                         uuid: actor.uuid,
@@ -3755,9 +3762,18 @@ export class QuestPanel {
      * @returns {Object} Extracted state information
      */
     _extractExistingState(content) {
+        // `status` and `progress` start EMPTY, not at a default.
+        //
+        // `status` used to default to the literal `'Not Started'`, which is truthy — so
+        // `existingState.status || importedQuest.status` always took the existing branch
+        // and **a re-import could never change a quest's status**, even on a page that
+        // had none to preserve. An absent value has to be falsy for a preserve-then-fall-
+        // back chain to work at all. This is the blank-versus-absent shape again, in a
+        // third place: a default is indistinguishable from a real reading.
         const state = {
             tasks: [],
-            status: 'Not Started',
+            status: '',
+            progress: null,
             participants: [],
             treasure: []
         };
@@ -3825,6 +3841,12 @@ export class QuestPanel {
             if (statusMatch) {
                 state.status = statusMatch[1].trim();
             }
+
+            // Extract progress, so a re-import preserves it rather than resetting to 0.
+            const progressMatch = content.match(/<strong>Progress:<\/strong>\s*([0-9]+)\s*%?/);
+            if (progressMatch) {
+                state.progress = Number(progressMatch[1]);
+            }
             
             // Extract participants
             const participantsMatch = content.match(/<strong>Participants:<\/strong>\s*([^<]*)/);
@@ -3862,6 +3884,30 @@ export class QuestPanel {
     /**
      * Generate journal content from imported quest object (for new quests only)
      */
+    /**
+     * Wrap task text in the tag the parser decodes state from.
+     *
+     * The reader (`utility-quest-parser.js`) detects `<s>` as completed, `<code>` as
+     * failed and `<em>` as hidden, defaulting to active. Both writers emitted a bare
+     * `<li>` for every task, so **the writer could not express what the reader could
+     * read**, and every task round-tripped back to `active`. That was TODO C7, measured
+     * across all 30 production quests before it was fixed.
+     *
+     * Markup-as-storage, and A1 deletes the whole encoding. Until then the two halves
+     * have to agree, or an import cannot set task state at all.
+     *
+     * @param {string} text
+     * @param {string} state active | completed | failed | hidden
+     */
+    _wrapTaskState(text, state) {
+        switch (state) {
+            case 'completed': return `<s>${text}</s>`;
+            case 'failed':    return `<code>${text}</code>`;
+            case 'hidden':    return `<em>${text}</em>`;
+            default:          return text;
+        }
+    }
+
     async _generateJournalContentFromImport(quest) {
         let content = "";
         if (quest.img) {
@@ -3870,7 +3916,12 @@ export class QuestPanel {
         if (quest.category) {
             content += `<p><strong>Category:</strong> ${quest.category}</p>\n\n`;
         }
-        if (quest.description) {
+        // `!== undefined`, not truthiness. A blank description used to be skipped
+        // exactly as an absent one was, and the reader then attributed the FOLLOWING
+        // fields to Description — `description: ""` parsed back as
+        // "Category: Side Quest\n\nParticipants: …". Writing the empty field keeps
+        // blank and absent distinguishable, which is the whole of TODO H13.
+        if (quest.description !== undefined && quest.description !== null) {
             content += `<p><strong>Description:</strong> ${quest.description}</p>\n\n`;
         }
         if (quest.location) {
@@ -3898,7 +3949,7 @@ export class QuestPanel {
                     });
                 }
                 
-                content += `<li>${taskText}</li>\n`;
+                content += `<li>${this._wrapTaskState(taskText, t.state)}</li>\n`;
             });
             content += `</ul>\n\n`;
         }
@@ -3926,7 +3977,12 @@ export class QuestPanel {
         if (quest.status) {
             content += `<p><strong>Status:</strong> ${normalizeQuestStatus(quest.status)}</p>\n\n`;
         }
-        
+        // The reader parses a Progress field and the writer never emitted one, so every
+        // round trip reset progress to 0. See TODO C7.
+        if (Number(quest.progress) > 0) {
+            content += `<p><strong>Progress:</strong> ${Number(quest.progress)}%</p>\n\n`;
+        }
+
         // --- AUTO ADD PARTY MEMBERS (JSON Import Only) ---
         const autoAddParty = game.settings.get(MODULE.ID, 'autoAddPartyMembers');
         if (autoAddParty) {
@@ -3938,10 +3994,8 @@ export class QuestPanel {
             const partyActors = getPartyActors();
             for (const actor of partyActors) {
                 // Only add if not already present by uuid or name
-                const alreadyPresent = quest.participants.some(p => {
-                    if (typeof p === 'string') return p === actor.name;
-                    return (p.uuid && p.uuid === actor.uuid) || (p.name && p.name === actor.name);
-                });
+                // Same fix as the merge path above — see TODO C6.
+                const alreadyPresent = quest.participants.some(p => isSameParticipant(p, actor));
                 if (!alreadyPresent) {
                     quest.participants.push({
                         uuid: actor.uuid,

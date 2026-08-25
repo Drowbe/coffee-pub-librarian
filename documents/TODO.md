@@ -62,6 +62,9 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 
 | ID | Sev | Area | Item | Size |
 |---|---|---|---|---|
+| **C6** | Critical | Quests | Auto-add party duplicates participants on every import — and it now defaults ON | S |
+| **C7** | Critical | Quests | The quest writer emits neither task state nor progress; import loses both | M |
+| **H13** | High | Quests | A blank Description makes the parser absorb the fields that follow it | S |
 | **H2** | High | Blacksmith API | Tags on `api.tags` — **dev done**; production run + teardown remain | S |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **H12** | High | Quests | Audit the quest HTML reader before A1 converts anything | M |
@@ -227,6 +230,84 @@ shaking out bugs, and note two documented traps up front: pass the context
 you get a silent empty div), and `TagWidget.activate()` is the entire event layer —
 without it the widget renders inert. Filter mode is documented as **not
 implemented**; do not use it.
+
+## Critical
+
+### C6 — Auto-add party duplicates participants on every import
+
+`_generateJournalContentFromImport` guards its auto-add with
+([`panel-quest.js:3941`](../scripts/panel-quest.js#L3941)):
+
+```js
+if (typeof p === 'string') return p === actor.name;
+```
+
+Participants are stored as **enriched link strings** — `@UUID[Actor.xxx]{Cyrus Bing}` —
+so that comparison tests `"@UUID[Actor.xxx]{Cyrus Bing}" === "Cyrus Bing"` and is always
+false. **Every party member is re-added on every import**, however many times they are
+already listed.
+
+**Live and urgent: this setting was just registered with `default: true` (C5).** Before
+that it threw, so the bug could never fire. It can now, on the next import.
+
+The audit shows it in production data — pages already carry each party member twice, once
+as a UUID link and once as a plain name, which is the same failure from an earlier run.
+
+Fix the comparison to extract the uuid or the label from a link string before comparing.
+`utility-resolver.js` already parses that shape.
+
+---
+
+### C7 — The quest writer emits neither task state nor progress
+
+`_generateJournalContentFromImport` writes tasks as bare `<li>${taskText}</li>`
+([`panel-quest.js:3901`](../scripts/panel-quest.js#L3901)) and emits no Progress line at
+all. The reader encodes state as `<s>` / `<code>` / `<em>` and reads a Progress field —
+so **the writer cannot express what the reader can read.**
+
+Measured by the H12 audit across all 30 production quests. Every one round-trips
+`completed` → `active`, `failed` → `active`, `hidden` → `active`, and `progress: 71` → `0`.
+
+Two live consequences:
+
+- **Quest import cannot set task state or progress.** An importer supplying
+  `state: "completed"` gets an active task. Confirmed in the synthetic cases too.
+- **Re-import silently resets progress**, because the update path regenerates content.
+
+**And the A1 consequence, which is the reason H12 exists.** Conversion is safe *only* if
+it reads with the parser and writes to the schema directly. If it round-trips through this
+writer at any point it sets every task in the world to `active` and every quest's progress
+to `0`, permanently. Do not let the conversion touch `_generateJournalContentFromImport`.
+
+---
+
+## High
+
+### H13 — A blank Description makes the parser absorb the fields that follow it
+
+Supplying `description: ""` to an import produces a page whose Description parses back as:
+
+```
+Category: Side Quest
+
+Participants: @UUID[Actor...]{Cyrus Bing}, ...
+```
+
+The writer's `if (quest.description)` skips the Description line for a blank string
+exactly as it does for an absent one, and the reader then attributes the following
+content to Description.
+
+**This is the blank-versus-absent defect Blacksmith predicted**, and it is our third
+instance across the suite after our own `expandedDetails` rule and Artificer's apparatus
+label. The shared cause, in their words: *testing a parsed value cannot tell you whether
+the thing was there.* Presence has to be tracked separately from content at the point of
+reading.
+
+Worth noting what did **not** break: a description containing `<strong>Status:</strong>`
+degrades to the plain text `The Status: is a lie` rather than injecting a field. HTML in a
+description is stripped to text on round trip, which is data loss but not corruption.
+
+---
 
 ### H12 — Audit the quest reader before A1 converts anything
 

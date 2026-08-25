@@ -50,6 +50,44 @@ const CATEGORY_TYPES = {
     artifacts: 'item'
 };
 
+/**
+ * Pull the uuid and label out of a participant, whatever shape it arrives in.
+ *
+ * Participants are stored three ways in the same array: a plain name (`"Cyrus Bing"`),
+ * an enriched link string (`"@UUID[Actor.abc]{Cyrus Bing}"`), and an object
+ * (`{ uuid, name, img }`). Anything comparing them has to normalize first.
+ *
+ * **This exists because comparing them raw duplicated every party member on every
+ * import** — the auto-add guard tested `p === actor.name` against a link string and was
+ * always false, so it re-added everyone every time. See TODO C6.
+ *
+ * @param {string|object|null} participant
+ * @returns {{uuid: string, name: string}}
+ */
+export function parseParticipant(participant) {
+    if (!participant) return { uuid: '', name: '' };
+    if (typeof participant === 'object') {
+        return { uuid: String(participant.uuid ?? ''), name: String(participant.name ?? '').trim() };
+    }
+    const raw = String(participant).trim();
+    const match = raw.match(/^@UUID\[([^\]]+)\]\{([^}]*)\}$/);
+    if (match) return { uuid: match[1], name: match[2].trim() };
+    return { uuid: '', name: raw };
+}
+
+/**
+ * True when `participant` refers to the same actor as `actor`.
+ * Uuid first, name as the fallback — a plain-name participant has no uuid to match on.
+ *
+ * @param {string|object} participant
+ * @param {object} actor
+ */
+export function isSameParticipant(participant, actor) {
+    const { uuid, name } = parseParticipant(participant);
+    if (uuid && actor?.uuid && uuid === actor.uuid) return true;
+    return Boolean(name) && name === String(actor?.name ?? '').trim();
+}
+
 export function typeForCategory(category) {
     return CATEGORY_TYPES[String(category ?? '').trim().toLowerCase()] ?? 'journal';
 }

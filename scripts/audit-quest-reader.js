@@ -113,9 +113,12 @@ export async function roundTripPages(panel) {
         try {
             const html = await readContent(page);
             const first = await QuestParser.parseSinglePage(page, html);
-            // The writer expects the import shape, which uses `name` and the same
-            // field names the parser produces -- so a parsed entry is a valid input.
-            const rewritten = await panel._generateJournalContentFromImport.call({}, first);
+            // Called on the real panel, not a stub `{}`. The first version passed an
+            // empty object to avoid accumulating resolve reports -- harmless while the
+            // writer only touched `this._resolveReports?`, and broken the moment it
+            // gained a `this._wrapTaskState` helper. Optional chaining already handles
+            // the reports; a stub was never buying anything.
+            const rewritten = await panel._generateJournalContentFromImport.call(panel, first);
             const second = await QuestParser.parseSinglePage(page, rewritten);
             const differences = diffEntries(first, second);
             if (differences.length) findings.push({ page: page.name, differences });
@@ -162,7 +165,7 @@ export async function roundTripImports(panel) {
     const findings = [];
     for (const { label, quest } of cases) {
         try {
-            const html = await panel._generateJournalContentFromImport.call({}, quest);
+            const html = await panel._generateJournalContentFromImport.call(panel, quest);
             const parsed = await QuestParser.parseSinglePage({ name: quest.name, uuid: 'audit' }, html);
             const notes = [];
 

@@ -54,10 +54,14 @@ export class QuestParser {
         // Parse all <p> fields
         const pTags = Array.from(doc.querySelectorAll('p'));
         let lastP = null;
+        // Whether this page carries ANY structured field. Separate from whether a given
+        // field has a value, which is the distinction the description fallback needs.
+        let sawAnyField = false;
         for (let i = 0; i < pTags.length; i++) {
             const p = pTags[i];
             const strong = p.querySelector('strong');
             if (!strong) continue;
+            sawAnyField = true;
             const label = strong.textContent.trim().replace(/:$/, '').toUpperCase();
             // Get value: all text after the <strong> tag
             let value = p.textContent.replace(strong.textContent, '').replace(/^[:\s]*/, '').trim();
@@ -329,8 +333,17 @@ export class QuestParser {
             }
         }
 
-        // Fallback: if no description, use all text content
-        if (!entry.description) {
+        // Fallback: a page with NO field markup at all is treated as free prose, and its
+        // whole text becomes the description. That is the case this exists for — a quest
+        // written by hand before the module structured them.
+        //
+        // It must NOT fire merely because Description is empty. It used to test
+        // `!entry.description`, so a quest whose Description was blank absorbed the
+        // entire document — Category, Participants, Tasks and all — into its description
+        // field. Blank and absent again, this time in the reader: an empty parsed value
+        // was read as "no markup found". Gate on whether any field was actually seen.
+        // See TODO H13.
+        if (!entry.description && !sawAnyField) {
             entry.description = doc.body.textContent.trim();
         }
 

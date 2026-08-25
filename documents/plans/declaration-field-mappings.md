@@ -166,6 +166,31 @@ import work rather than a parallel cleanup.
 - **Export is in scope under this model, and the completeness guard must survive.**
   See the H6 note in `../TODO.md`. The guard counts what it gathered against the
   `CODEX_PAGE_TYPE` pages actually in the journal and refuses a partial; a derived
-  export that drops it is a regression. `testing/macro-invalid-page-probe.js` measures
-  whether `journal.pages.invalidDocumentIds` can serve as the independent source, or
-  whether `_source.length` vs `pages.size` has to.
+  export that drops it is a regression.
+
+  **Settled 2026-08-24: the guarantee moves into the engine, in three layers** —
+  owner precondition (refuse when the profile's owning module is absent or disabled),
+  type-registration precondition (the declared type must have a registered data model),
+  and invalid-document refusal. None opt-in. **Layer 1 closes a hazard we had written
+  off as undetectable**: with Librarian disabled the pages are absent rather than
+  unreadable, so no count taken from the loaded collection can see them.
+
+  **Measured 2026-08-24 (`testing/macro-invalid-page-probe.js`): both independent
+  sources work**, and Blacksmith adopted both for layer 3. A page that fails to construct is added to
+  `journal.pages.invalidDocumentIds` — embedded collections track this, not just
+  world collections — and is simultaneously visible as `_source.length` exceeding
+  `pages.size`. **Prefer `invalidDocumentIds`**: it carries the ids, so the export can
+  report *which* pages are missing rather than only how many. Use the count comparison
+  as the cross-check, since it needs no knowledge of why a page failed.
+
+- **Named rules are available if a quest constraint needs one.** Blacksmith's closed
+  rule vocabulary held for five of six constraints on their hostile test profile
+  (Weapon); the sixth became a Blacksmith-owned *named rule* because it derived a value
+  the author never wrote. Our quest constraints use the same vocabulary. If one of ours
+  does not fit, supply the sentence and they add a named rule — that is the expected
+  path, not a failure.
+- **Three model constructs to check our mappings against** when the Journal kind is
+  ready: authored fields that land nowhere in particular (two authored fields feeding a
+  single document path), profile-level derivations that run after fields resolve, and
+  genuinely nullable fields (null as a real value rather than an absence). Our `visible`
+  → `ownership.default` projection is probably the first of these.

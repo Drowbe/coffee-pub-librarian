@@ -330,10 +330,22 @@ item rather than a parallel cleanup.
 codex and quest, friendly field → target path, plus the seven genuinely-computed cases.
 That file is raw input for Blacksmith; delete it once their declarations exist.
 
-**Timeline: longer than previously recorded.** There is no branch. Blacksmith is
-rebuilding its own four kinds on the public declaration path first, enforced by a
-`tools/` check, and the change intentionally breaks every consumer. Do not schedule
-this against a near date.
+**Timeline: longer than previously recorded, and there is nothing for us to do.**
+No branch. Blacksmith is rebuilding its own four kinds on the public declaration path
+first, enforced by a `tools/` check, and the change intentionally breaks every
+consumer. Step 4 is in progress (Loot live, Weapon declared second on purpose — the
+profile that tests the model rather than repeats it), then five more Item profiles,
+Roll Table, Actor, and **Journal last**, which is the one we extend. **They will
+contact us at Journal.** Do not schedule this against a near date and do not poll them.
+
+**One thing to have ready for that conversation:** their closed rule vocabulary held
+for five of six Weapon constraints, and the sixth needed a Blacksmith-owned *named
+rule* (ranged-ness derived from subtype via lookup — a rule about a value the author
+never wrote). Our quest constraints use the same vocabulary. **If one of ours needs a
+named rule that is a normal outcome, not a failure** — we supply the sentence and they
+add it. Three constructs their survey missed are also now in the model and may apply to
+us: authored fields that land nowhere (two authored fields feeding one document path),
+profile-level derivations that run after fields resolve, and genuinely nullable fields.
 
 **Still true from the earlier design**, and carried forward because it survives the
 rewrite: `description` is not a discriminator (it is the quest's body field *and* the
@@ -357,13 +369,31 @@ Two notes for whoever picks this up:
   defines **Profile** as a schema specialization within a kind (`journal.area`), which
   is what our codex and quest profiles are. None of it is on the wiki; do not go
   looking online.
-- **Export is now in scope, and that is a change.** The declaration derives the export
-  as well as the import, so our export stops being ours alone. **The completeness guard
-  has to survive that** — it counts what it gathered against the `CODEX_PAGE_TYPE` pages
-  actually in the journal and refuses a partial. That is the disabled-module
-  silent-partial failure Blacksmith has no answer for, and a derived export that drops
-  it is a regression, not a simplification. Raise it with them before the declaration
-  shape is fixed rather than after.
+- **Export is now in scope, and the completeness guard becomes engine behaviour.**
+  Raised with Blacksmith and **settled**: a declaration *can* express a completeness
+  assertion but should not have to, because the guarantee belongs in the engine where
+  it also covers modules that never thought to ask. Three layers, none opt-in:
+  **(1) owner precondition** — export refuses when the profile's owning module is
+  absent or disabled, naming it; **(2) type-registration precondition** — the declared
+  type must have a registered data model; **(3) invalid-document refusal** — export
+  refuses when the collection holds documents Foundry could not construct, names them,
+  and reports counts on success.
+
+  **Layer 1 is the one that matters, and we could not have built it.** Our guard counts
+  what it gathered against the `CODEX_PAGE_TYPE` pages in the journal — but with
+  Librarian disabled those pages are not unreadable, they are **absent**, so no count
+  taken from the loaded collection can detect the case at all.
+  `architecture/architecture-codex.md` already concedes this ("Librarian's own export
+  cannot hit that case"). Only knowing the profile's owner is missing detects it.
+  Adopting the declaration model therefore **closes a hazard we had written off as
+  undetectable**, rather than merely preserving what we have.
+
+  Layer 3 is ours: `testing/macro-invalid-page-probe.js` established that
+  `journal.pages.invalidDocumentIds` is populated on **embedded** collections, which
+  Blacksmith could not confirm from their side. They adopted the recommendation to use
+  both sources — `invalidDocumentIds` names *which* pages are missing, the
+  `_source.length` vs collection-size comparison needs no knowledge of *why* a document
+  failed — because the two fail differently.
 
 Once this lands, `showBlacksmithWait` in [`helpers.js`](../scripts/helpers.js) loses
 its only two callers and should go with it, along with its stale header comment

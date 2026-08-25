@@ -16,10 +16,21 @@ try {
     const victim = journal.pages.find(p => p.name === 'Will Be Broken');
     console.log('BEFORE  | pages:', journal.pages.size, '| invalid:', journal.pages.invalidDocumentIds.size);
 
-    // Point one page at a subtype no installed module declares, then rebuild.
+    // Drop the CONSTRUCTED document but keep its _source row. Without this,
+    // _initializeDocument short-circuits on `this.get(data._id)` and merely
+    // re-initializes the existing doc, so createDocument -- the only thing that
+    // can throw into _handleInvalidDocument -- never runs. Version 1 of this
+    // probe missed that and reported a meaningless EMPTY.
+    journal.pages.delete(victim.id, { modifySource: false });
+
+    // Point the surviving source row at a subtype no installed module declares.
     const source = journal.pages._source.find(p => p._id === victim.id);
     source.type = FAKE_TYPE;
-    journal.pages.initialize({ strict: false });
+
+    // Default strictness on purpose. Passing { strict: false } sets the fallback
+    // path in DocumentTypeField._validateType, which explicitly ALLOWS an
+    // unrecognized type -- the second reason version 1 proved nothing.
+    journal.pages.initialize();
 
     const invalid = journal.pages.invalidDocumentIds;
     console.log('AFTER   | pages:', journal.pages.size, '| invalid:', invalid.size);
@@ -62,5 +73,32 @@ try {
  SAFE: `_source` is mutated IN MEMORY ONLY and nothing is saved. The
  scratch journal is deleted at the end. Reload the world afterwards to
  clear any in-memory residue.
+
+ RESULT, 2026-08-24, Foundry 13.351 + dnd5e 5.3.3: POPULATED.
+   BEFORE  | pages: 2 | invalid: 0
+   AFTER   | pages: 1 | invalid: 1
+   IDS     | ['6zFvxJ52P2msNyYF']
+   VERDICT | POPULATED
+   COUNTS  | source: 2 loaded: 1 missing: 1
+
+ Both independent sources work, which is the answer the export guarantee
+ needed. Foundry logged the construction failure through exactly the path
+ read out of the source beforehand:
+   EmbeddedCollection.initialize -> _initializeDocument -> createDocument
+   throws -> _handleInvalidDocument -> invalidDocumentIds.add(id)
+ with `type: "coffee-pub-doesnotexist.thing" is not a valid type for the
+ JournalEntryPage Document class`.
+
+ So a codex page refused at load is BOTH counted in
+ journal.pages.invalidDocumentIds AND visible as _source.length exceeding
+ pages.size. Prefer invalidDocumentIds: it names the ids, so the export
+ can report WHICH pages are missing rather than only how many.
+
+ RESULT of probe v1, 2026-08-23: EMPTY -- and INVALID, discarded. It hit
+ the re-initialize branch and also passed { strict: false }, so no
+ construction was ever attempted. The tell was the broken page keeping a
+ fully intact CodexPageModel `system` while carrying an undeclared type,
+ which a failed construction cannot produce. Both flaws are fixed above;
+ do not quote the v1 number.
  ==================================================================
 ------------------------------------------------------------------ */

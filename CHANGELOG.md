@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Quest scene pins were exported empty and imported into nothing.** Both halves of the feature had been reading and writing `scene.getFlag('coffee-pub-librarian', 'questPins')` — a flag nothing has written since quest pins moved to Blacksmith's Pins API. The only writer left in the module was the pin importer itself.
+
+  The consequences compounded. **Export** emitted `"scenePins": {}` in any world whose pins were placed after that migration, while the summary reported `Scenes with Pins: 0` and the file wrote successfully — a backup that looks complete and is not, discovered only at restore. **Import** wrote merged pin records back into the same dead flag, so restored pins were stored where nothing renders from and never appeared on the canvas.
+
+  Both halves now go through the Pins API. The export enumerates with `listAllQuestPins` and the import creates through `createQuestPin` / `createObjectivePin`.
+
+  **Only identity and placement travel** — `questUuid`, `questIndex`, `questCategory`, `x`, `y`, and `objectiveIndex` on objective pins. Design, ownership, icon, visibility and objective text are re-derived from the live quest page at import, because carrying them would mean two sources for the same values with a stale copy winning. Scenes are still matched by name rather than id, since ids differ between worlds and moving quests between worlds is the case the feature exists for.
+
+  **The export now refuses a partial**, matching the guard the codex export has carried since 13.0.2: it reconciles placed plus unplaced against the total the Pins API reports and aborts without writing if anything is unaccounted for. The summary reports `N of M` so the check is visible on success rather than only firing on failure. Unplaced pins — real state with no placement to restore — are counted separately and recorded in the export metadata, so a pin total lower than a GM expects has a visible reason.
+
+  A pin naming a quest that does not exist is now reported to the GM with the count and listed in the console, rather than silently skipped. `_mergePinData` is deleted; deduplication is now "does a live pin already exist for this quest and objective on this scene", which is a question the Pins API can answer.
+
+  The quest export envelope also gains a `kind` field (`coffee-pub-librarian.quest`), diagnostic only and never used for dispatch, so a reader can name the owning module when Librarian is absent.
+
 ## [13.0.2]
 
 ### Added

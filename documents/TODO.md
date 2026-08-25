@@ -33,7 +33,6 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 
 | ID | Sev | Area | Item | Size |
 |---|---|---|---|---|
-| **C4** | Critical | Quests | Quest export writes an empty `scenePins`; pin placement is lost | M |
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **M2** | Medium | Quests | Redundant post-render collapse restore with trim-matching | S |
@@ -59,6 +58,7 @@ Kept so the tracker answers "did we do X". Detail lives in `CHANGELOG.md` under
 
 | ID | Was | Recorded as |
 |---|---|---|
+| **C4** | Quest scene pins exported empty and imported into a dead flag | *Quest scene pins were exported empty and imported into nothing* |
 | **C1** | Window registry opener called a function that no longer existed | *The Blacksmith window registry could not open either browser* |
 | **C2** | `prompt-codex.txt` never shipped; Copy Template copied its own error string | *Copy Template in the codex importer copied an error message* |
 | **C3** | Squire named in three user-facing strings | *Squire named in three user-facing places* |
@@ -123,54 +123,6 @@ are tracked in [At a glance](#at-a-glance).
       - **Export Codex** reports `N of N`.
       - **Theme**: the tool context menu offers Light / Dark / Glass and the choice
         survives a reopen.
-
----
-
-## Critical
-
-### C4 — The quest export's `scenePins` reads a flag nothing writes
-
-`_exportScenePins` ([`panel-quest.js:4028`](../scripts/panel-quest.js#L4028)) builds the
-export's `scenePins` block from `scene.getFlag(MODULE.ID, 'questPins')`. Quest pins no
-longer live there. They moved to Blacksmith's Pins API, and current code enumerates
-them with `listAllQuestPins(pins, { sceneId })` — the legacy scene flag's **only**
-writer left in the module is `_importScenePins` itself
-([`panel-quest.js:4090`](../scripts/panel-quest.js#L4090)).
-
-So in any world whose pins were placed after the Pins API migration, the export emits
-`"scenePins": {}` and the envelope carries nothing. The quest count, the file, and the
-success toast all look right — the summary even reports `Scenes with Pins: 0` rather
-than erroring.
-
-**This is the same failure class as M11**, the codex partial export: a backup that
-looks complete, is not, and is only discovered on restore. M11 was fixed by counting
-what was gathered against what exists and refusing on a mismatch. This wants the same
-treatment, and the guard is cheap because the Pins API can be asked how many quest
-pins a scene actually has.
-
-Two parts, and the first is not optional:
-
-- **Read through the Pins API**, not the flag. `listAllQuestPins` + `isQuestOrObjectivePin`
-  are already imported in this file for the bulk-clear path, so the enumeration exists.
-- **Then refuse a partial**, matching `_openExportCodexDialog`: if the API reports pins
-  the export did not gather, say so rather than writing the file.
-
-**Round-trip consequence.** Pins API records carry more than the legacy flag did — pin
-design, ownership, `blacksmithVisibility`. `_importScenePins` and `_mergePinData` match
-on `questUuid` + `objectiveIndex` and will keep working, but the import half should be
-read alongside the fix rather than assumed compatible; a richer record written back into
-the old flag shape would quietly drop everything the flag has no room for.
-
-**Do not let this block the Blacksmith importer work.** It was reported to Blacksmith
-during the `api.importer` discussion — it came up because `scenePins` was the example
-justifying their envelope `context`, and they were told explicitly not to generalize
-that API around it while it carries no data. Filed here so the two stay separate: this
-is a Librarian bug that predates the importer conversation and is fixable now, without
-waiting on their branch.
-
-`testing/fixture-import-quest-envelope.json` is a hand-built envelope in the format the
-exporter and importer agree on — reconstructed, not captured, precisely because a live
-world cannot currently produce one. It is the regression fixture for this item.
 
 ---
 

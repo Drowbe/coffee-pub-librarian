@@ -66,7 +66,7 @@
           "questUuid": "JournalEntry.FIXTUREQUESTJRNL.JournalEntryPage.FIXTUREQUESTA01",
           "questIndex": 1,
           "questCategory": "Main Quest",
-          "_fixtureNote": "questIndex and questCategory are INFERRED from the Pins API config object, not observed in the legacy scene flag. Nothing has written that flag since the Pins API migration (TODO C4), so its true historical shape is unknowable. Stable core is questUuid, x, y, objectiveIndex.",
+          "_fixtureNote": "As of the C4 fix this is the REAL exported shape, no longer inferred. The export emits identity and placement only - questUuid, questIndex, questCategory, x, y, and objectiveIndex on objective pins. Design, ownership, icon and objective text are re-derived from the live quest page at import, so they deliberately do not travel. Extra keys elsewhere in this fixture (pinType, objectiveState, objectiveText) are legacy-shape leftovers that the importer ignores.",
           "x": 1450,
           "y": 980,
           "pinType": "quest"

@@ -1068,8 +1068,31 @@ export class QuestPanel {
             tags: q.tags || [],
             location: q.location || ""
         }));
-        const scenePins = await this._exportScenePins();
+        // Refuse a partial rather than write one — the same rule the codex export
+        // follows (M11), for the same reason: an export is a backup, and the
+        // dangerous failure is not an error but a file that looks complete and is
+        // not, discovered only at restore. Before C4 this silently wrote zero pins.
+        let pinExport;
+        try {
+            pinExport = await this._exportScenePins();
+        } catch (error) {
+            ui.notifications.error('Quest export aborted: the scene pins could not be read. Nothing was written. See the console.');
+            return;
+        }
+        const { scenePins, gathered, total, unplaced } = pinExport;
+        if (gathered + unplaced !== total) {
+            const missing = total - gathered - unplaced;
+            console.error(`${MODULE.TITLE} | Pin export incomplete: ${gathered} placed + ${unplaced} unplaced != ${total} total (${missing} unaccounted).`);
+            ui.notifications.error(
+                `Quest export aborted: ${missing} quest ${missing === 1 ? 'pin' : 'pins'} could not be accounted for. Nothing was written.`
+            );
+            return;
+        }
+
         const enhancedExportData = {
+            // Diagnostic only, never dispatch — lets a reader (and Blacksmith's
+            // importer) name the owning module when Librarian is absent.
+            kind: 'coffee-pub-librarian.quest',
             quests: exportQuests,
             scenePins,
             exportVersion: "1.1",
@@ -1077,7 +1100,10 @@ export class QuestPanel {
             metadata: {
                 totalQuests: exportQuests.length,
                 totalScenesWithPins: Object.keys(scenePins).length,
-                totalPins: Object.values(scenePins).reduce((sum, scene) => sum + (scene.questPins ? scene.questPins.length : 0), 0)
+                totalPins: gathered,
+                // Unplaced pins are real state with no placement to restore. Recorded
+                // so `totalPins` being lower than a GM expects has a visible reason.
+                unplacedPins: unplaced
             }
         };
         const exportData = JSON.stringify(enhancedExportData, null, 2);
@@ -1095,7 +1121,7 @@ export class QuestPanel {
             summary: [
                 { label: 'Quests', value: exportQuests.length },
                 { label: 'Scenes with Pins', value: Object.keys(scenePins).length },
-                { label: 'Pins', value: enhancedExportData.metadata.totalPins },
+                { label: 'Pins', value: `${gathered} of ${total}` },
                 { label: 'Format', value: `Quest export v${enhancedExportData.exportVersion}` },
                 { label: 'Created', value: new Date(enhancedExportData.timestamp).toLocaleString() }
             ],
@@ -4018,147 +4044,183 @@ export class QuestPanel {
      * Export scene pins data for all scenes that have quest pins
      * @returns {Object} Object containing scene pin data
      */
+    /**
+     * Export quest and objective pin PLACEMENTS, read through the Pins API.
+     *
+     * **This used to read `scene.getFlag(MODULE.ID, 'questPins')`, which nothing has
+     * written since pins moved to Blacksmith's Pins API** — the only writer left was
+     * `_importScenePins` itself. So the export emitted `{}` in any world whose pins
+     * were placed after that migration, the summary reported `Scenes with Pins: 0`,
+     * and the file looked complete. That was TODO **C4**, the same silent-partial
+     * failure class as the codex export (**M11**).
+     *
+     * **Only identity and placement travel.** Design, ownership, icon, visibility and
+     * objective text are all re-derived from the live quest page by `createQuestPin` /
+     * `createObjectivePin` at import, so carrying them here would mean two sources for
+     * the same values and a stale copy winning. This is the "stable core" the
+     * `testing/fixture-import-quest-envelope.json` fixture documents:
+     * `questUuid`, `questIndex`, `questCategory`, `objectiveIndex`, `x`, `y`.
+     *
+     * @returns {Promise<{scenePins: object, gathered: number, total: number, unplaced: number}>}
+     * @private
+     */
     async _exportScenePins() {
+        const empty = { scenePins: {}, gathered: 0, total: 0, unplaced: 0 };
+        const pins = getPinsApi();
+        if (!isPinsApiAvailable(pins)) {
+            console.warn(`${MODULE.TITLE} | Pins API unavailable; no pins exported.`);
+            return empty;
+        }
+
         try {
-            const allScenes = game.scenes.contents;
+            const all = listAllQuestPins(pins);
             const scenePins = {};
-            let totalPins = 0;
-            
-            for (const scene of allScenes) {
-                const pins = scene.getFlag(MODULE.ID, 'questPins') || [];
-                if (pins.length > 0) {
-                    // Validate pin data before export
-                    const validPins = pins.filter(pin => {
-                        return pin && 
-                               pin.questUuid && 
-                               typeof pin.x === 'number' && 
-                               typeof pin.y === 'number';
-                    });
-                    
-                    if (validPins.length > 0) {
-                        scenePins[scene.id] = {
-                            sceneName: scene.name,
-                            sceneId: scene.id,
-                            questPins: validPins
-                        };
-                        totalPins += validPins.length;
-                    }
+            let gathered = 0;
+            let unplaced = 0;
+
+            for (const pin of all) {
+                // An unplaced pin has no scene and no coordinates. It is real state,
+                // but it is not a placement and there is nothing to restore it onto —
+                // counted so the totals reconcile rather than silently discarded.
+                const hasPlacement = pin.sceneId
+                    && Number.isFinite(pin.x)
+                    && Number.isFinite(pin.y);
+                if (!hasPlacement) { unplaced++; continue; }
+
+                const scene = game.scenes.get(pin.sceneId);
+                if (!scene) { unplaced++; continue; }
+
+                const config = pin.config ?? {};
+                const record = {
+                    questUuid: config.questUuid,
+                    questIndex: config.questIndex,
+                    questCategory: config.questCategory ?? 'Side Quest',
+                    x: pin.x,
+                    y: pin.y
+                };
+                // Objective pins carry an index; quest-level pins must not, because
+                // the import matches on `questUuid` + `objectiveIndex` and an
+                // undefined index is what distinguishes the quest-level pin.
+                if (Number.isInteger(config.objectiveIndex)) {
+                    record.objectiveIndex = config.objectiveIndex;
                 }
+
+                scenePins[scene.id] ??= {
+                    sceneName: scene.name,
+                    sceneId: scene.id,
+                    questPins: []
+                };
+                scenePins[scene.id].questPins.push(record);
+                gathered++;
             }
-            
-            getBlacksmith()?.utils.postConsoleAndNotification(
-                MODULE.NAME,
-                'Scene pins export completed', 
-                { 
-                    scenesWithPins: Object.keys(scenePins).length, 
-                    totalPins: totalPins 
-                }, 
-                true, 
-                false
-            );
-            
-            return scenePins;
+
+            return { scenePins, gathered, total: all.length, unplaced };
         } catch (error) {
-            console.error('Error exporting scene pins:', error);
-            return {};
+            console.error(`${MODULE.TITLE} | Error exporting scene pins:`, error);
+            // Rethrow: a caught-and-ignored failure here is exactly how the previous
+            // version wrote a file that looked complete. The caller refuses instead.
+            throw error;
         }
     }
 
     /**
-     * Import scene pins data to scenes
-     * @param {Object} scenePins - Scene pin data from export
+     * Restore pin placements through the Pins API.
+     *
+     * **This used to write `scene.setFlag(MODULE.ID, 'questPins', …)`**, a flag the
+     * Pins API never reads — so imported pins were stored somewhere nothing renders
+     * from and never appeared on the canvas. Both halves of C4 were broken, not just
+     * the export.
+     *
+     * Scenes are matched **by name**, not id, because ids differ between worlds and
+     * moving quests between worlds is the case this feature exists for.
+     *
+     * @param {object} scenePins - Scene pin data from an export envelope
+     * @private
      */
     async _importScenePins(scenePins) {
+        const pins = getPinsApi();
+        if (!isPinsApiAvailable(pins)) {
+            ui.notifications.warn('Pins API unavailable; scene pins were not imported.');
+            return;
+        }
+
+        const entries = Object.values(scenePins ?? {});
+        if (!entries.length) {
+            ui.notifications.info('No scene pins to import.');
+            return;
+        }
+
+        let created = 0, skippedExisting = 0, skippedScenes = 0;
+        const orphaned = [];
+
         try {
-            let importedScenes = 0;
-            let updatedPins = 0;
-            let skippedScenes = 0;
-            
-            for (const [sceneId, sceneData] of Object.entries(scenePins)) {
-                // Find scene by name (since ID might be different in target world)
-                const scene = game.scenes.find(s => s.name === sceneData.sceneName);
-                if (scene) {
-                    // Get existing pins for this scene
-                    const existingPins = scene.getFlag(MODULE.ID, 'questPins') || [];
-                    const importedPins = sceneData.questPins;
-                    
-                    // Smart merge: avoid duplicates, preserve existing progress
-                    const mergedPins = this._mergePinData(existingPins, importedPins);
-                    
-                    // Only update if there are changes
-                    if (JSON.stringify(existingPins) !== JSON.stringify(mergedPins)) {
-                        await scene.setFlag(MODULE.ID, 'questPins', mergedPins);
-                        updatedPins += mergedPins.length;
-                        importedScenes++;
-                    }
-                } else {
-                    skippedScenes++;
+            for (const sceneData of entries) {
+                const scene = game.scenes.find(s => s.name === sceneData?.sceneName);
+                if (!scene) { skippedScenes++; continue; }
+
+                // Read the live pins for this scene ONCE, then track what we add, so a
+                // payload containing the same pin twice does not create it twice.
+                const live = listAllQuestPins(pins, { sceneId: scene.id });
+                const seen = new Set(live.map(p => `${p.config?.questUuid}|${p.config?.objectiveIndex ?? 'quest'}`));
+
+                for (const record of sceneData.questPins ?? []) {
+                    if (!record?.questUuid
+                        || !Number.isFinite(record.x)
+                        || !Number.isFinite(record.y)) continue;
+
+                    const isObjective = Number.isInteger(record.objectiveIndex);
+                    const key = `${record.questUuid}|${isObjective ? record.objectiveIndex : 'quest'}`;
+                    if (seen.has(key)) { skippedExisting++; continue; }
+
+                    // The quest must exist before its pin can. A pin naming a quest
+                    // that failed to import, or one absent from the payload entirely,
+                    // is reported rather than logged — it is a hole in the restore.
+                    const page = await fromUuid(record.questUuid);
+                    if (!page) { orphaned.push(record.questUuid); continue; }
+
+                    const common = {
+                        questUuid: record.questUuid,
+                        questIndex: record.questIndex,
+                        questCategory: record.questCategory ?? 'Side Quest',
+                        x: record.x,
+                        y: record.y,
+                        sceneId: scene.id
+                    };
+                    // Ownership, design, icon and objective text are derived from the
+                    // live page inside these — deliberately not carried in the export.
+                    const pin = isObjective
+                        ? await createObjectivePin({ ...common, objectiveIndex: record.objectiveIndex })
+                        : await createQuestPin(common);
+
+                    if (pin) { created++; seen.add(key); }
+                    else orphaned.push(record.questUuid);
                 }
             }
-            
-            if (importedScenes > 0) {
-                ui.notifications.info(`Scene pins imported: ${importedScenes} scenes updated with ${updatedPins} total pins.`);
-                
-                // MIGRATED TO BLACKSMITH API: Reload pins on canvas
+
+            if (created > 0) {
+                ui.notifications.info(`Scene pins imported: ${created} placed.`);
                 await reloadAllQuestPins();
             }
-            
-            if (skippedScenes > 0) {
-                ui.notifications.warn(`${skippedScenes} scenes from import were not found in this world and were skipped.`);
+            if (skippedExisting > 0) {
+                ui.notifications.info(`${skippedExisting} pins already existed and were left as they are.`);
             }
-            
-            if (importedScenes === 0 && skippedScenes === 0) {
+            if (skippedScenes > 0) {
+                ui.notifications.warn(`${skippedScenes} scenes from the import were not found in this world and were skipped.`);
+            }
+            if (orphaned.length > 0) {
+                const unique = [...new Set(orphaned)];
+                console.warn(`${MODULE.TITLE} | Pins referencing quests that do not exist:`, unique);
+                ui.notifications.warn(
+                    `${orphaned.length} ${orphaned.length === 1 ? 'pin' : 'pins'} could not be placed because the quest does not exist. See the console for which.`
+                );
+            }
+            if (!created && !skippedExisting && !skippedScenes && !orphaned.length) {
                 ui.notifications.info('No scene pins to import.');
             }
         } catch (error) {
-            console.error('Error importing scene pins:', error);
+            console.error(`${MODULE.TITLE} | Error importing scene pins:`, error);
             ui.notifications.error('Error importing scene pins. Check console for details.');
         }
-    }
-
-    /**
-     * Smart merge of existing and imported pin data
-     * @param {Array} existingPins - Current pins on the scene
-     * @param {Array} importedPins - Pins from import data
-     * @returns {Array} Merged pin data
-     */
-    _mergePinData(existingPins, importedPins) {
-        const merged = [...existingPins];
-        
-        for (const importedPin of importedPins) {
-            // Validate imported pin data
-            if (!importedPin || !importedPin.questUuid || 
-                typeof importedPin.x !== 'number' || typeof importedPin.y !== 'number') {
-                continue;
-            }
-            
-            // Check if pin already exists (by questUuid + objectiveIndex combination)
-            const existingIndex = merged.findIndex(p => 
-                p.questUuid === importedPin.questUuid && 
-                p.objectiveIndex === importedPin.objectiveIndex
-            );
-            
-            if (existingIndex >= 0) {
-                // Update existing pin with new position but preserve state and progress
-                merged[existingIndex] = {
-                    ...importedPin,
-                    // Preserve existing progress and state
-                    objectiveState: merged[existingIndex].objectiveState || importedPin.objectiveState,
-                    questStatus: merged[existingIndex].questStatus || importedPin.questStatus,
-                    questState: merged[existingIndex].questState || importedPin.questState,
-                    // Preserve existing pinId for continuity
-                    pinId: merged[existingIndex].pinId
-                };
-            } else {
-                // Add new pin with generated pinId
-                merged.push({
-                    ...importedPin,
-                    pinId: `${importedPin.questUuid}-${importedPin.objectiveIndex || 'quest'}-${Date.now()}`
-                });
-            }
-        }
-        
-        return merged;
     }
 
     /**

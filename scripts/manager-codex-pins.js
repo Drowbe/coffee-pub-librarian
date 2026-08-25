@@ -21,6 +21,7 @@
 import { getCampaignPanel, refreshCampaignPanel, revealCampaignPanel } from './campaign-panels.js';
 import { MODULE, getCodexCategoryIcon } from './const.js';
 import { trackModuleTimeout } from './timer-utils.js';
+import { getCodexTags } from './utility-tags.js';
 
 // Initial design defaults per pin type. GM customises further via Configure Pin.
 const PIN_DEFAULTS = {
@@ -208,10 +209,29 @@ function _getModuleTaxonomyTags(kind) {
     return pins.getModuleTaxonomy(MODULE.ID)?.[getPinType(kind)]?.tags ?? null;
 }
 
-/** Derive codex pin tags from the category name. Works for any category including user-created ones. */
-function _codexCategoryToPinTags(category) {
-    const tag = _codexCategoryToTag(category);
-    return tag ? [tag] : [];
+/**
+ * Tags for a codex pin: the entry's own tags, plus its category as a slug.
+ *
+ * **The entry is the source of truth, and the flow is strictly entity -> pin.**
+ * Entity and pin assignments share the context key `coffee-pub-librarian.codex`
+ * but are separate rows, and Blacksmith's mirror is one-way and clobbering: it
+ * writes `setTags(ctx, pin.id, pin.tags)` on every pin write (manager-pins.js:595),
+ * so anything set against a pin's recordId is discarded by the next pin update.
+ * Reading the entity here and letting the mirror carry it outward is the direction
+ * that survives. Do NOT have the pin read the central store — nothing does that,
+ * and it would race the mirror.
+ *
+ * The category slug is kept alongside the entry's tags rather than replaced by
+ * them: it is what pin filtering by category has always keyed on, and an untagged
+ * entry would otherwise produce a pin with no tags at all.
+ *
+ * @param {string} category
+ * @param {string} [pageUuid] the codex page, when known
+ */
+function _codexCategoryToPinTags(category, pageUuid) {
+    const categoryTag = _codexCategoryToTag(category);
+    const entryTags = pageUuid ? getCodexTags(pageUuid) : [];
+    return [...new Set([...(categoryTag ? [categoryTag] : []), ...entryTags])];
 }
 
 /**
@@ -263,7 +283,7 @@ export async function createCodexPin(opts) {
 
     const design     = _buildMergedDesign(pins, 'codex');
     const ownership  = _calculateCodexPinOwnership(page);
-    const tags       = _codexCategoryToPinTags(entryCategory);
+    const tags       = _codexCategoryToPinTags(entryCategory, page?.uuid);
     const image      = _codexCategoryToImage(entryCategory, page.system?.categoryIcon);
 
     const pinData = {
@@ -462,7 +482,9 @@ export async function updateCodexPin(entryUuid, opts = {}) {
     const patch = {
         text:  entryName || page?.name || '',
         image: _codexCategoryToImage(entryCategory, page.system?.categoryIcon),
-        tags:  _codexCategoryToPinTags(entryCategory),
+        // `entryUuid`, not `page.uuid`: identical here, but this is the path the
+        // editor calls after saving, so it must read the tags that save just wrote.
+        tags:  _codexCategoryToPinTags(entryCategory, entryUuid),
         config: { codexUuid: entryUuid, codexCategory: entryCategory }
     };
     try {

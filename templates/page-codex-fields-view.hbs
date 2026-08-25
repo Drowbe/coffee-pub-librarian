@@ -50,11 +50,12 @@
                 <span class="codex-page-value">{{discoveredByString}}</span>
             </div>
         {{/if}}
-        {{#if system.tags.length}}
+        {{!-- `tagList`, not `system.tags`: tags live in Blacksmith's central store. --}}
+        {{#if tagList.length}}
             <div class="codex-page-field">
                 <span class="codex-page-label">Tags</span>
                 <span class="codex-page-value codex-page-tags">
-                    {{#each system.tags}}<span class="codex-page-tag">{{this}}</span>{{/each}}
+                    {{#each tagList}}<span class="codex-page-tag">{{this}}</span>{{/each}}
                 </span>
             </div>
         {{/if}}

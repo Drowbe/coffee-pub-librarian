@@ -17,6 +17,7 @@
 import { MODULE } from './const.js';
 import { CODEX_PAGE_TYPE } from './data/codex-page-model.js';
 import { resolveCodexLinks, mergeCodexLinks } from './utility-resolver.js';
+import { setCodexTags, moveCodexTags } from './utility-tags.js';
 
 /**
  * Build the `system` payload for a codex page from an import entry.
@@ -37,7 +38,8 @@ export function buildCodexSystemData(entry, resolvedLinks) {
         plotHook: entry.plotHook || '',
         location: entry.location || '',
         links: resolvedLinks,
-        tags: Array.isArray(entry.tags) ? entry.tags : [],
+        // `tags` is deliberately absent: they go to Blacksmith's central store,
+        // written by importCodexEntry once the page has a uuid to key on.
         img: entry.img || ''
     };
     // Related codex entries: plain names, resolved at render against the
@@ -123,6 +125,7 @@ export async function importCodexEntry(entry, journal) {
         // replace it with a typed page (preserving ownership and sort)
         const ownership = foundry.utils.deepClone(page.ownership);
         const sort = page.sort;
+        const oldUuid = page.uuid;
         await page.delete();
         const [newPage] = await journal.createEmbeddedDocuments('JournalEntryPage', [{
             name: entry.name,
@@ -133,6 +136,11 @@ export async function importCodexEntry(entry, journal) {
             sort
         }]);
         if (entry.uuid) await newPage.setFlag(MODULE.ID, 'codexUuid', entry.uuid);
+        // The page was deleted and recreated, so its uuid changed and any existing
+        // tag assignment would orphan silently. Carry it across first, then let the
+        // payload's own tags win if it supplied any.
+        await moveCodexTags(oldUuid, newPage.uuid);
+        if (Array.isArray(entry.tags)) await setCodexTags(newPage.uuid, entry.tags);
         return { document: newPage, outcome: 'replaced', duplicateMerged: false, resolveReports: reports, importWarnings: [] };
     }
 
@@ -155,6 +163,10 @@ export async function importCodexEntry(entry, journal) {
         // value this same import just wrote.
         const duplicateMerged = Boolean(entry.uuid && page.getFlag(MODULE.ID, 'codexUuid') !== entry.uuid);
         await page.update(patch);
+        // Absent tags preserve what the page already has; present replaces. Same rule
+        // as expandedDetails, and it matters more here: re-importing an older JSON
+        // must not wipe tags a GM added since.
+        if (Array.isArray(entry.tags)) await setCodexTags(page.uuid, entry.tags);
         return { document: page, outcome: 'updated', duplicateMerged, resolveReports: reports, importWarnings: [] };
     }
 
@@ -166,6 +178,7 @@ export async function importCodexEntry(entry, journal) {
         ownership: { default: CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE }
     }]);
     if (entry.uuid) await newPage.setFlag(MODULE.ID, 'codexUuid', entry.uuid);
+    if (Array.isArray(entry.tags)) await setCodexTags(newPage.uuid, entry.tags);
     return { document: newPage, outcome: 'added', duplicateMerged: false, resolveReports: reports, importWarnings: [] };
 }
 

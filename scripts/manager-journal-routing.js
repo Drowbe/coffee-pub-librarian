@@ -1,5 +1,6 @@
 import { MODULE } from './const.js';
 import { getCampaignPanel, refreshCampaignPanel } from './campaign-panels.js';
+import { CODEX_TAG_CONTEXT } from './utility-tags.js';
 
 /**
  * Route journal page changes to whichever campaign panel cares about them.
@@ -63,7 +64,19 @@ export function initJournalRouting() {
     _hookIds = [
         ['updateJournalEntryPage', Hooks.on('updateJournalEntryPage', (page, changes, options) => _route(page, changes, options))],
         ['createJournalEntryPage', Hooks.on('createJournalEntryPage', (page, options) => _route(page, {}, options))],
-        ['deleteJournalEntryPage', Hooks.on('deleteJournalEntryPage', (page, options) => _route(page, {}, options))]
+        ['deleteJournalEntryPage', Hooks.on('deleteJournalEntryPage', (page, options) => _route(page, {}, options))],
+        // Tags are no longer part of the document, so changing one writes to
+        // Blacksmith's store and fires NO journal hook -- the browser would sit
+        // there stale until something else touched the page. This is the
+        // replacement signal.
+        //
+        // Safe to re-render on unconditionally: Blacksmith fires this only on a
+        // real change (adding a tag a record already has, or removing one it does
+        // not, is silent), so there is no no-op churn to guard against.
+        ['blacksmith.tags.changed', Hooks.on('blacksmith.tags.changed', ({ contextKey } = {}) => {
+            if (contextKey !== CODEX_TAG_CONTEXT) return;
+            refreshCampaignPanel('codex');
+        })]
     ];
 }
 

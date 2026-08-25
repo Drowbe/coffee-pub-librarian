@@ -6,6 +6,7 @@ import { trackModuleTimeout } from './timer-utils.js';
 import { getTextEditor } from './helpers.js';
 import { codexLinkKey, normalizeCodexLink } from './utility-resolver.js';
 import { buildCodexPageIndex, renderCodexRef } from './utility-codex-index.js';
+import { getCodexTags, setCodexTags } from './utility-tags.js';
 import { updateCodexPin as updateCodexPinForEntry } from './manager-codex-pins.js';
 // Imported from Blacksmith's bridge, which is a real ES module and so resolves at
 // evaluation time — which is when `extends` needs it. This file used to resolve the
@@ -102,7 +103,8 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
                     location: sys.location || '',
                     links: sys.linkList,
                     related: Array.from(sys.related || []),
-                    tags: Array.from(sys.tags || []),
+                    // Central store, not `system.tags` -- see utility-tags.js.
+                    tags: getCodexTags(page.uuid),
                     expandedDetails: rawContent
                 };
             } else {
@@ -687,7 +689,9 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
                 // Names, not uuids: resolved at render against the codex journal, so a
                 // name whose entry does not exist yet is kept and links itself later.
                 related: this._normalizeTags(entry.related),
-                tags: entry.tags || [],
+                // `tags` is deliberately absent: it belongs to Blacksmith's central
+                // store and is written below, once the page exists and has a uuid to
+                // key on. Writing it here too would create a second source of truth.
                 // Don't freeze a lore-derived preview image into system.img — the entry
                 // image stays dynamic (first Expanded Details illustration) unless the
                 // user explicitly picked a different one
@@ -726,6 +730,7 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
                 // Only write Expanded Details if the editor was present in the form
                 if (entry.expandedDetails !== undefined) patch['text.content'] = entry.expandedDetails;
                 await page.update(patch);
+                await setCodexTags(page.uuid, entry.tags || []);
                 this.page = page;
                 await updateCodexPinForEntry(page.uuid, {
                     entryName: entry.name,
@@ -734,6 +739,8 @@ export class CodexWindow extends BlacksmithWindowBaseV2 {
                 ui.notifications.info(`Codex entry "${entry.name}" updated successfully.`);
             } else {
                 const [newPage] = await journal.createEmbeddedDocuments('JournalEntryPage', [pageData]);
+                // Only now is there a uuid to key the tag assignment on.
+                if (newPage) await setCodexTags(newPage.uuid, entry.tags || []);
                 this.page = newPage || null;
                 this.pageUuid = newPage?.uuid || null;
                 this.isEditing = !!this.pageUuid;

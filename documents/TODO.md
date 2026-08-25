@@ -34,6 +34,7 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | ID | Sev | Area | Item | Size |
 |---|---|---|---|---|
 | **H2** | High | Blacksmith API | Adopt `api.tags` + TagWidget; stop storing tags in record data | L |
+| **M12** | Medium | Codex | Curate the tag vocabulary: ~10 merges and 2 deletions | S |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **A1** | Decision | Architecture | Quests are still HTML-parsed; codex is not | L |
@@ -383,6 +384,53 @@ about being "blocked on the public Blacksmith Importer API".
 ---
 
 ## Medium
+
+### M12 — Curate the codex tag vocabulary
+
+After the H2 migration the codex carries **452 distinct tags across 342 entries**, 264 of
+them used exactly once. Run this once the read side is verified, using Blacksmith's GM
+`tags.rename()` / `tags.delete()`, which propagate across every record.
+
+**264 singletons is not 264 renames.** Most are legitimate one-off descriptors — `baker`,
+`tanner`, `stablemaster` — that describe exactly one entry accurately. They make the cloud
+long, not wrong, and there is nothing to merge them into. Blacksmith initially read the
+singleton count as a rename count and corrected it in their own docs; the same inference is
+easy to make from "452 tags, 264 singletons", so it is written down here to stop it.
+
+Merges, roughly ten:
+
+| Merge | Into | Entries |
+|---|---|---|
+| `bcod` | `black-cult-of-the-dragon` | 36 — the big one, and records carry both |
+| `books` | `book` | 48 |
+| `harpers`, `harper-adjacent` | `harper` | 20 |
+| `ruins` | `ruin` | 9 |
+| `the-tangle` | `tangle` | 7 |
+| `the-ride` | `ride` | 4 |
+| `desertsmouth-mountains` | `desertsmouth` | 3 |
+| `summon`, `summoned` | `summoning` | 6 |
+| `elven` | `elf` | 6 |
+
+Delete: `autolink-test` and `test`, both on test entries.
+
+**Hold `dwarven` → `dwarf` until someone looks at the entries.** Blacksmith's warning, and
+it is correct: **rename merges and does not unmerge.** If `dwarven` qualifies objects (a
+dwarven axe) rather than people, folding it into `dwarf` destroys a distinction that cannot
+be recovered, because afterwards both are one tag with no record of which was which.
+
+Two operational notes:
+
+- **Branch on the return value, do not count iterations.** `rename()` returns `null` on
+  refusal and `{updated}` on success. It normalizes both names first, so a list written in
+  display terms — `Books` → `book` — refuses whenever the stored tag is already the target.
+  A pass reporting "10 processed" would be indistinguishable from one that renamed nothing.
+  Blacksmith made every refusal log, but the return value is still the contract.
+- **Rename onto an existing tag merges and dedupes**, per record and in the registry, so
+  variants can be collapsed onto a canonical tag without pre-checking whether the target is
+  already present. That is what makes `bcod` workable.
+
+---
+
 
 ### M8 — Adopt `api.entityList` for participant selection
 

@@ -2,6 +2,7 @@ import { MODULE } from '../const.js';
 import { renderTemplate, getTextEditor, escapeHtml } from '../helpers.js';
 import { codexLinkKey, normalizeCodexLink } from '../utility-resolver.js';
 import { buildCodexPageIndex, renderCodexRef } from '../utility-codex-index.js';
+import { getCodexTags, setCodexTags } from '../utility-tags.js';
 
 // The CONCRETE text page sheet. (JournalEntryPageTextSheet is abstract and defines
 // NO parts — extending it renders neither the view content nor the lore editor.)
@@ -39,7 +40,11 @@ export class CodexPageSheet extends JournalEntryPageProseMirrorSheet {
         if (partId === 'codexFields') {
             context.document = this.document;
             context.system = this.document.system;
-            context.tagsString = (this.document.system.tags || []).join(', ');
+            // One read, two shapes: `tagsString` for the edit form's <string-tags>,
+            // `tagList` for the view template's chips.
+            const tags = getCodexTags(this.document.uuid);
+            context.tagsString = tags.join(', ');
+            context.tagList = tags;
             context.relatedString = (this.document.system.related || []).join(', ');
             context.linkChips = this.document.system.linkList;
         }
@@ -144,6 +149,11 @@ export class CodexPageSheet extends JournalEntryPageProseMirrorSheet {
                     system,
                     isGM: game.user.isGM,
                     discoveredByString: (system.discoveredBy || []).join(', '),
+                    // View mode does NOT pass through _preparePartContext -- the core
+                    // view content part is `root: true`, so this block is rendered here
+                    // and prepended instead (see the class header). Anything the view
+                    // template needs has to be supplied HERE as well as there.
+                    tagList: getCodexTags(this.document.uuid),
                     linksHtml,
                     relatedHtml
                 }
@@ -158,15 +168,31 @@ export class CodexPageSheet extends JournalEntryPageProseMirrorSheet {
         const data = super._prepareSubmitData(event, form, formData, updateData);
 
         // `<string-tags>` submits a comma-separated string in some Foundry builds and
-        // an array in others, so both `system.tags` and `system.related` are
-        // normalized the same way rather than trusting one shape.
-        for (const path of ['system.tags', 'system.related']) {
-            const raw = foundry.utils.getProperty(data, path);
-            if (typeof raw === 'string') {
-                foundry.utils.setProperty(data, path, raw.split(',').map(t => t.trim()).filter(Boolean));
-            } else if (Array.isArray(raw)) {
-                foundry.utils.setProperty(data, path, raw.map(t => String(t).trim()).filter(Boolean));
-            }
+        // an array in others, so both are normalized the same way rather than
+        // trusting one shape.
+        const normalize = (raw) => {
+            if (typeof raw === 'string') return raw.split(',').map(t => t.trim()).filter(Boolean);
+            if (Array.isArray(raw)) return raw.map(t => String(t).trim()).filter(Boolean);
+            return null;
+        };
+
+        const related = normalize(foundry.utils.getProperty(data, 'system.related'));
+        if (related) foundry.utils.setProperty(data, 'system.related', related);
+
+        // Tags do NOT go onto the document. They belong to Blacksmith's central store,
+        // so the field is removed from the update and written separately -- leaving it
+        // in would re-populate `system.tags` and recreate the second source of truth
+        // the migration just removed.
+        //
+        // Fire-and-forget with a caught rejection: `_prepareSubmitData` is synchronous
+        // by contract, so this cannot be awaited. The store write is independent of the
+        // document write, so a failure here leaves the document correct and the tags
+        // unchanged rather than half-applied.
+        const tags = normalize(foundry.utils.getProperty(data, 'system.tags'));
+        if (tags) {
+            delete data.system?.tags;
+            setCodexTags(this.document.uuid, tags).catch(error =>
+                console.error('Coffee Pub Librarian | Failed to save codex tags:', error));
         }
 
         return data;

@@ -15,26 +15,23 @@
 //   1. `getRecordsByTag()` returns bare recordIds. A uuid is the only
 //      generic route back to a Foundry document; a page id would force
 //      every reader to scan journals to resolve it.
-//   2. Pin assignments and entity assignments land in the SAME context
-//      bucket, so anything reading the context must be able to tell them
-//      apart. Blacksmith's pin mirror writes
-//      `setTags(`${pin.moduleId}.${pin.type}`, pin.id, ...)`
-//      (manager-pins.js:595) and our codex pin type is `codex`, so it
-//      writes to `coffee-pub-librarian.codex` -- byte-identical to the
-//      entity context. Confirmed in a live world: after migrating 342
-//      entries the bucket held 344 rows, the extra two being placed codex
-//      pins.
+//   2. It was ALSO true, briefly, that pin assignments shared this context
+//      bucket -- Blacksmith's pin mirror wrote a row keyed by pin id, and
+//      after migrating 342 entries the bucket held 344. That is fixed
+//      upstream: the mirror now only adds pin tags to the shared registry
+//      and writes no assignment row, and `PinManager.purgeLegacyTagRows()`
+//      removes the ones already written. Reason 1 is what the uuid choice
+//      rests on now.
 //
-//      Reason 1 is the load-bearing one. Blacksmith also argued that page
-//      ids and pin ids are "both 16-char randoms and indistinguishable",
-//      and that is NOT true here -- our pins use `crypto.randomUUID()`
-//      (manager-codex-pins.js:270), so they are 36-char hyphenated, while
-//      Foundry page ids are 16-char. They were always distinguishable. The
-//      uuid is still right, just for one reason rather than two.
-//
-//      The `includes('.')` filter below keys on the real difference: a page
-//      uuid contains dots (`JournalEntry.x.JournalEntryPage.y`), a UUID v4
-//      pin id contains only hyphens.
+//      Recorded because two wrong explanations were written here first, and
+//      the durable fact is narrower than either. Blacksmith does not define
+//      a pin id format at all -- the pin schema defaults `id: ''`
+//      (manager-pins-schema.js:333) and nothing in the pins code generates
+//      one; the id is whatever the calling module supplies. OUR pin ids are
+//      v4 UUIDs because WE generate them with `crypto.randomUUID()`
+//      (manager-codex-pins.js:270). Any code that told entity rows from pin
+//      rows by string shape was reading a fact about Librarian, not a
+//      contract with Blacksmith, and that is why no such code survives here.
 //
 // CONCURRENCY: safe as of Blacksmith's August 2026 tag-write rebuild, but
 // await anyway. `setTags` used to be an unserialised read-modify-write of
@@ -159,9 +156,10 @@ export async function clearCodexTags(pageUuid) {
  * `getRecordsByTag` once per registry tag. Blacksmith asked to be told when a
  * consumer hit this; we have. Replace this body if they add the scoped call.
  *
- * Pin recordIds share this context bucket (see the header), so rows that are
- * not page uuids are filtered out -- a page uuid contains dots, a UUID v4 pin
- * id contains only hyphens.
+ * Every row in this context is a codex entry. Pin rows used to share the bucket
+ * and were filtered out here by string shape; Blacksmith removed the pin mirror's
+ * assignment writes, so there is nothing to filter and nothing to sniff. Do not
+ * reintroduce a shape test -- see the header for why it was never safe.
  *
  * @returns {Array<{tag: string, count: number}>} sorted by tag
  */
@@ -170,8 +168,7 @@ export function getCodexTagCounts() {
     if (!isTagsApiAvailable(api)) return [];
     const out = [];
     for (const tag of api.getRegistry() ?? []) {
-        const records = (api.getRecordsByTag(CODEX_TAG_CONTEXT, tag) ?? [])
-            .filter(id => typeof id === 'string' && id.includes('.'));
+        const records = api.getRecordsByTag(CODEX_TAG_CONTEXT, tag) ?? [];
         if (records.length) out.push({ tag, count: records.length });
     }
     return out.sort((a, b) => a.tag.localeCompare(b.tag));

@@ -110,10 +110,19 @@
 
 /* The panel stylesheet positions .codex-filters for a body-top placement.
    In the toolbar it owns the full width and supplies its own spacing. */
+/* Horizontal padding is NOT zero here, and this rule is why the filter icon spent
+   several rounds mashed against the window's right edge. `panel-codex.css` gives
+   `.codex-filters` an 8px inset; this rule overrides the whole shorthand, and
+   `padding: 2px 0` threw the horizontal half away. Every attempt to fix it in
+   `panel-codex.css` was overridden right here.
+
+   Keep all four sides equal: the search input should sit the same distance from the
+   frame on the left, right and top. The bar's own padding does not reach the right
+   edge once the left region is stretched, so this is the inset that actually counts. */
 .librarian-codex-browser-window .blacksmith-window-tool-bar .codex-filters {
     width: 100%;
     margin: 0;
-    padding: 2px 0;
+    padding: 8px;
 }
 
 .librarian-codex-browser-window .blacksmith-window-tool-bar .codex-search {
@@ -124,3 +133,32 @@
    cloud at 100px with its own scroller, and drives the filter toggle by animating
    `.collapsed { max-height: 0 }`. A height set from this file is more specific than
    that rule and silently wins, leaving the cloud stuck open. */
+
+/* ===== LIGHT-THEME TOKEN OVERRIDES — temporary, ours, removable =========
+   Blacksmith's Light palette is tuned for SPARSE tool windows. Compendium
+   Search is a list of names; ours is a dense card — a label, a summary, a
+   plot hook, links, related names, four location rows and a tag strip, all
+   in one entry. At that density two of their Light values do not hold up:
+
+     --blacksmith-tool-text-muted : rgba(47, 36, 26, 0.55)
+     --blacksmith-tool-border     : rgba(233, 198, 142, 0.85)
+
+   55% brown on parchment is fine for one subtitle and illegible for six
+   stacked labels. The border is a pale tan on a pale ground, so card edges
+   disappear and the eye has nothing to group by.
+
+   These raise both, ONLY inside the codex browser, and only for Light. The
+   fallbacks are the same values Blacksmith ships, so removing this block
+   restores their palette exactly. Dark and Glass are untouched — they were
+   never the problem.
+
+   This is an override of another module's design decision and should not
+   live here forever. Filed to raise with them: whether a dense-content
+   consumer wants a different Light contrast ramp, or whether these values
+   should simply be stronger for everyone. See TODO. */
+
+.application.blacksmith-window-tool.blacksmith-window-tool-theme-light.librarian-codex-browser-window {
+    --blacksmith-tool-text-muted: rgba(47, 36, 26, 0.72);
+    --blacksmith-tool-border: rgba(112, 85, 49, 0.38);
+    --blacksmith-tool-divider: rgba(112, 85, 49, 0.28);
+}

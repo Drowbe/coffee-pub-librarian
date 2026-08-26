@@ -33,6 +33,8 @@ nothing owed back except the item below.
   question the dev world could not answer is **whether the singleton pattern survives** —
   452 tags with 264 used once told us little, because an unknown share of it was our own
   test noise. Capture the vocabulary report before curating anything in production.
+- **We are overriding three of their Light theme tokens** — see **M14**. Density, not a
+  bug on their side, but they should know a consumer diverged and why.
 - **That `getTagCounts` works**, once the codex tag cloud is built on it — it is
   unexercised on their side too.
 - **Our lang file did not exist.** `TYPES.JournalEntryPage.coffee-pub-librarian.codex`
@@ -64,6 +66,7 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **H2** | High | Blacksmith API | Tags on `api.tags` — **dev done**; production run + teardown remain | S |
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **H12** | High | Quests | Audit the quest HTML reader before A1 converts anything | M |
+| **M14** | Medium | Blacksmith API **[EXT]** | We override Blacksmith's Light theme tokens locally; raise it with them | S |
 | **M13** | Medium | Codex | Players do not see an entry become visible until they reopen | M |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **L10** | Low | Blacksmith API **[EXT]** | Orphan-tag check: deliberately not built, blocked upstream | S |
@@ -499,6 +502,42 @@ about being "blocked on the public Blacksmith Importer API".
 
 ## Medium
 
+
+### M14 — [EXT] We override Blacksmith's Light theme tokens
+
+`styles/window-codex-browser.css` ends with a block that raises three
+`--blacksmith-tool-*` values, scoped to the codex browser and to the Light theme only:
+
+| Token | Blacksmith ships | We use |
+|---|---|---|
+| `text-muted` | `rgba(47, 36, 26, 0.55)` | `0.72` |
+| `border` | `rgba(233, 198, 142, 0.85)` | `rgba(112, 85, 49, 0.38)` |
+| `divider` | `rgba(112, 85, 49, 0.34)` | `0.28` |
+
+**Why.** Their Light palette is tuned for **sparse** tool windows. Compendium Search is a
+list of names; a codex card is a label, a summary, a plot hook, a links block, related
+names, four location rows and a tag strip. 55% brown on parchment is fine for one
+subtitle and illegible for six stacked labels, and a pale tan border on a pale ground
+leaves card edges invisible with nothing for the eye to group by.
+
+**Do not read this as a Blacksmith bug.** Their values are defensible for what their own
+windows do; ours is a density they did not design for. That is exactly the kind of thing
+worth telling them rather than silently diverging.
+
+**The question for them:** does a dense-content consumer want a different Light contrast
+ramp — a documented "content" tier alongside the existing tokens — or should these values
+simply be stronger for everyone? We have no view on which; we have the use case.
+
+Removing the block restores their palette exactly: the fallbacks in every consuming rule
+are the values they ship. Dark and Glass are untouched and were never the problem.
+
+**Related, and the more general point:** three passes over `panel-codex.css` colours
+produced the rule now recorded at the top of that file — chrome versus meaning, and never
+a brand colour at low alpha. The pastel appearance that prompted all this was translucent
+brand colours over a light ground, which is a consumer mistake rather than a palette one.
+Worth sending them alongside this, since it is the more useful half.
+
+---
 
 ### M13 — Players do not see an entry become visible until they reopen the codex
 

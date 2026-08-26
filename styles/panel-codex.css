@@ -1,4 +1,36 @@
 /* ==================================================================
+   COLOUR STRATEGY — read this before adding a colour
+   ==================================================================
+
+   Every colour here is one of two things, and which one decides how it
+   is written:
+
+   CHROME   surfaces, borders, dividers, secondary text. Follows the
+            user's Tool theme. Written as
+            `var(--blacksmith-tool-*, <fallback>)` so the panel still
+            renders with Blacksmith absent.
+
+   MEANING  brand identity, state, an affordance the eye must find.
+            Constant across themes, and therefore written OPAQUE.
+
+   THE TRAP, and it was hit twice before being named: a THIRD category
+   kept appearing — translucent meaning, a brand colour at 0.1–0.4
+   alpha. It claims to be constant and is not. A 20%-alpha red is muted
+   brick over a dark surface and pale pink over parchment. It passes a
+   contrast check, which is why an earlier pass approved it explicitly,
+   and it changes the panel's whole character between Light and Dark.
+   Six of them were what made the codex read as washed-out and pastel
+   beside every other Tool window in the suite.
+
+   So: if a colour carries meaning, make it opaque. If it should adapt,
+   use a token. Never a brand colour at low alpha.
+
+   Tag chips are CHROME on purpose — there are ninety of them and they
+   are navigation, not emphasis. A SELECTED tag is meaning, and is the
+   opaque brand orange.
+   ================================================================== */
+
+/* ==================================================================
    ===== CODEX PANEL ================================================
    ==================================================================
 
@@ -83,8 +115,7 @@
 
 .librarian-panel-host[data-position="left"] .codex-toolbar i:hover {
     opacity: 1;
-    color: var(--color-border-highlight, #ff6400);
-    text-shadow: 0 0 8px var(--color-shadow-primary);
+    color: #ff6400;
 }
 
 
@@ -150,7 +181,7 @@
 
 /* Discovered By styling */
 .librarian-panel-host[data-position="left"] .codex-entry .discovered-by-info {
-    background: rgba(255, 100, 0, 0.1);
+    background: var(--blacksmith-tool-surface-sunken, rgba(255, 100, 0, 0.1));
     border-left: 3px solid var(--color-border-highlight, #ff6400);
     padding: 8px 12px;
     margin: 8px 0;
@@ -181,28 +212,25 @@
 }
 
 .librarian-panel-host[data-position="left"] .codex-search {
-    position: relative;
     margin-bottom: 6px;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
 }
 
 .librarian-panel-host[data-position="left"] .codex-search input {
     flex: 1;
-    background: var(--blacksmith-tool-surface-hover, rgba(255, 255, 255, 0.1));
+    min-width: 0;
+    background: var(--blacksmith-tool-field-background, rgba(255, 255, 255, 0.1));
     border: 1px solid var(--blacksmith-tool-field-border, rgba(0, 0, 0, 0.6));
     border-radius: 3px;
-    color: var(--blacksmith-tool-text, #fff);
-    padding: 4px 28px 4px 8px;
+    color: var(--blacksmith-tool-field-text, #fff);
+    padding: 4px 8px;
     height: 28px;
 }
 
 .librarian-panel-host[data-position="left"] .codex-search .clear-search {
-    position: absolute;
-    right: 28px;
-    top: 50%;
-    transform: translateY(-50%);
+    flex: 0 0 auto;
     cursor: pointer;
     opacity: 0.7;
     transition: all 0.2s ease;
@@ -240,7 +268,7 @@
 .librarian-panel-host[data-position="left"] .codex-search .clear-search:hover {
     opacity: 1;
     color: rgba(255, 255, 255, 0.95);
-    background: rgba(185, 84, 61, 0.9);
+    background: #b9543d;
 }
 
 .librarian-panel-host[data-position="left"] .codex-search .toggle-tags-button.active {
@@ -250,7 +278,7 @@
 .librarian-panel-host[data-position="left"] .codex-search .toggle-tags-button.active:hover,
 .librarian-panel-host[data-position="left"] .codex-search .toggle-tags-button:hover {
     opacity: 1;
-    color: rgba(185, 84, 61, 0.9);
+    color: #b9543d;
 }
 .librarian-panel-host[data-position="left"] .codex-tag-filter select {
     width: 100%;
@@ -335,8 +363,8 @@
 
 /* Special styling for expanded entries */
 .librarian-panel-host[data-position="left"] .codex-entry:not(.collapsed) {
-    border: 2px solid rgba(183, 169, 136, 0.55);
-    box-shadow: 0 0 5px rgba(200, 100, 121, 0.3);
+    border: 2px solid var(--blacksmith-tool-border, rgba(183, 169, 136, 0.55));
+    box-shadow: none;
 }
 
 
@@ -346,7 +374,6 @@
     align-items: center;
     justify-content: space-between;
     gap: 6px;
-    background: rgba(96, 54, 51, 0.0);
     padding: 0px 0px 0px 0px;
     border-radius: 4px;
 }
@@ -390,9 +417,15 @@
 
 
 .codex-entry-label {
-    color: var(--blacksmith-tool-text-muted, rgba(159, 146, 117, 0.9));
+    /* `text`, not `text-muted`. A label already de-emphasises itself with size, caps
+       and letter-spacing; muting the colour on top of a muted surface stacked two
+       55% values and made SUMMARY / PLOT HOOK / LOCATION nearly invisible on Light. */
+    color: var(--blacksmith-tool-text, rgba(159, 146, 117, 0.9));
     background-color: var(--blacksmith-tool-surface-hover, rgba(159, 146, 117, 0.15));
-    font-size: 0.8em;
+    font-size: 0.72em;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    opacity: 0.75;
     text-transform: uppercase;
     padding: 2px 4px 2px 4px;
     border-radius: 3px;
@@ -427,15 +460,19 @@
 
 /* A reference to another codex entry, resolved to a page */
 .librarian-panel-host[data-position="left"] .codex-ref {
-    color: #e2551d;
+    /* A link is not a brand moment. Orange is reserved for hover and for the
+       enabled/selected state, which is the convention everywhere else in the suite —
+       using it at rest made every resolved name shout, and there are dozens per card.
+       Underline carries "this is a link"; colour carries "you are on it". */
+    color: var(--blacksmith-tool-text, #e8e8e8);
+    text-decoration: none;
     text-decoration: none;
     cursor: pointer;
     transition: color 0.2s;
 }
 
 .librarian-panel-host[data-position="left"] .codex-ref:hover {
-    color: #ff7a3c;
-    text-decoration: underline;
+    color: #ff6400;
 }
 
 /* A name with no entry (yet) and a link with no document (yet). Deliberately
@@ -443,8 +480,7 @@
    does not exist, and it resolves itself once that entry/document appears. */
 .librarian-panel-host[data-position="left"] .codex-ref-unresolved,
 .librarian-panel-host[data-position="left"] .codex-link-unresolved {
-    opacity: 0.55;
-    font-style: italic;
+    color: var(--blacksmith-tool-text-muted, rgba(255, 255, 255, 0.6));
     cursor: default;
 }
 
@@ -485,22 +521,21 @@
    places. Colour literals here match their neighbours and are converted with the
    rest of this file by TODO H5. */
 .librarian-codex-page-fields .codex-ref {
-    color: #e2551d;
+    color: var(--blacksmith-tool-text, #e8e8e8);
+    text-decoration: none;
     text-decoration: none;
     cursor: pointer;
     transition: color 0.2s;
 }
 
 .librarian-codex-page-fields .codex-ref:hover {
-    color: #ff7a3c;
-    text-decoration: underline;
+    color: #ff6400;
 }
 
 /* A name with no entry yet. Quiet rather than an error state: the relationship is
    real, the target simply does not exist yet, and it links itself when it does. */
 .librarian-codex-page-fields .codex-ref-unresolved {
-    opacity: 0.55;
-    font-style: italic;
+    color: var(--blacksmith-tool-text-muted, rgba(255, 255, 255, 0.6));
     cursor: default;
 }
 
@@ -512,21 +547,23 @@
 }
 
 .librarian-panel-host[data-position="left"] .codex-read-more {
+    /* Presents as a link, not a button. It was an outlined brand-orange pill, which
+       made the least important control on the card the loudest thing on it — every
+       entry has one, and none of them is what the reader came for. Same treatment as
+       every other link here: text colour at rest, orange on hover. */
     display: inline-flex;
     align-items: center;
-    gap: 7px;
-    padding: 3px 12px;
-    border: 1px solid rgba(255, 100, 0, 0.45);
-    border-radius: 999px;
-    background: rgba(255, 100, 0, 0.08);
-    color: var(--color-border-highlight, #ff6400);
+    gap: 6px;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: var(--blacksmith-tool-text, #e8e8e8);
     font-size: 0.78em;
     font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
     cursor: pointer;
     white-space: nowrap;
-    transition: background 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+    transition: color 0.15s ease;
 }
 
 .librarian-panel-host[data-position="left"] .codex-read-more i {
@@ -538,9 +575,7 @@
 }
 
 .librarian-panel-host[data-position="left"] .codex-read-more:hover {
-    background: rgba(255, 100, 0, 0.2);
-    border-color: rgba(255, 100, 0, 0.85);
-    box-shadow: 0 0 10px rgba(255, 100, 0, 0.3);
+    color: #ff6400;
 }
 
 .librarian-panel-host[data-position="left"] .codex-read-more:hover .codex-read-more-arrow {
@@ -550,7 +585,7 @@
 .librarian-panel-host[data-position="left"] .codex-entry-plothook {
     color: var(--blacksmith-tool-text-muted, #aaa);
     margin-bottom: 8px;
-    background: rgba(128, 127, 112, 0.3);
+    background: var(--blacksmith-tool-surface-sunken, rgba(128, 127, 112, 0.3));
     border-radius: 4px;
     padding: 6px 8px 6px 8px;
 }
@@ -566,16 +601,28 @@
 /* Tag Cloud Container */
 
 .librarian-panel-host[data-position="left"] .codex-tag-cloud {
-    padding: 8px 0px 8px 0px;
+    /* Symmetric padding, and a gutter the scrollbar lives in. This was
+       `8px 0` — the cloud draws its own sunken background, so zero horizontal
+       padding put every chip flush against that background's edge and left the
+       scrollbar sitting on top of the last column of chips. */
+    /* NO background and NO radius of its own. `.codex-filters` already paints a
+       surface with a 6px radius; a second filled, differently-rounded box inside it
+       left the outer one visible at the corners and along the bottom edge — the
+       "container peeking out from under the tag list". One box, one fill.
+
+       Right padding is larger than left ON PURPOSE: a scrollbar is laid out inside
+       the padding box, so symmetric padding puts the chips flush against it. The
+       extra 8px is the scrollbar's lane, which makes the visible gap on both sides
+       match. */
+    padding: 8px 16px 8px 8px;
     margin-bottom: 6px;
     display: flex;
     flex-wrap: wrap;
-    gap: 2px;
+    gap: 3px;
     max-height: 100px;
     overflow-y: auto;
-    background: var(--blacksmith-tool-surface-sunken, rgba(0, 0, 0, 0.2));
-    border-radius: 4px;
-    transition: all 0.2s ease-out;
+    background: transparent;
+    transition: max-height 0.2s ease-out, opacity 0.2s ease-out;
 }
 .librarian-panel-host[data-position="left"] .codex-tag-cloud.collapsed {
     max-height: 0;
@@ -587,30 +634,34 @@
 /* Tag Cloud Tags */
 
 .librarian-panel-host[data-position="left"] .codex-tag {
-    background: rgba(255, 47, 47, 0.2);
-    border-color: rgba(255, 47, 47, 0.0);
+    /* `surface-sunken` + a real border, not `surface-raised`: under Light, `raised`
+       is #f0e5d1 and the panel behind it is parchment too, so a raised chip on a
+       raised ground vanished. Sunken reads as a well; the divider gives it an edge. */
+    background: var(--blacksmith-tool-surface-sunken, #3a3a3a);
+    border: 1px solid var(--blacksmith-tool-divider, rgba(0, 0, 0, 0.25));
     border-radius: 4px;
-    padding: 2px 4px;
+    padding: 2px 5px;
     font-size: 0.65em;
-    color: var(--blacksmith-tool-text, rgba(255, 255, 255, 0.9));
+    color: var(--blacksmith-tool-text, rgba(255, 255, 255, 0.85));
     cursor: pointer;
     transition: all 0.2s ease;
     text-transform: uppercase;
     white-space: nowrap;
 }
 .librarian-panel-host[data-position="left"] .codex-tag:hover {
-    background: rgba(255, 47, 47, 0.7);
-    border-color: rgba(255, 47, 47, 0.0);
+    background: var(--blacksmith-tool-surface-hover, #4a4a4a);
+    border-color: var(--blacksmith-tool-border, rgba(0, 0, 0, 0.25));
+    color: var(--blacksmith-tool-text, #e8e8e8);
 }
 
 .librarian-panel-host[data-position="left"] .codex-tag.selected {
-    background: rgba(50, 100, 150, 0.4);
-    border-color: rgba(50, 100, 150, 0.0);
-    color: rgba(255, 255, 255, 0.95);
+    background: #ff6400;
+    border-color: #e2551d;
+    color: #ffffff;
 }
 .librarian-panel-host[data-position="left"] .codex-tag.selected:hover {
-    background: rgba(50, 100, 150, 0.7);
-    border-color: rgba(100, 150, 200, 0.8);
+    background: #e2551d;
+    border-color: #e2551d;
 }
 
 .librarian-panel-host[data-position="left"] .codex-entry-discoveredby,
@@ -624,10 +675,18 @@
 .librarian-panel-host[data-position="left"] .codex-entry-link a {
   background-color: transparent;
   border: none;
-  color: rgba(241, 71, 20, 0.863);
+  color: var(--blacksmith-tool-text, #e8e8e8);
+  text-decoration: none;
   white-space: normal;
   word-wrap: break-word;
   overflow-wrap: break-word;
+}
+
+/* Same hover as `.codex-ref`. These are Foundry's enriched anchors rather than our
+   own ref markup, so they need the rule stated separately or they sit inert while
+   every other link in the card responds. */
+.librarian-panel-host[data-position="left"] .codex-entry-link a:hover {
+  color: #ff6400;
 }
 
 /* Visibility toggle icon: dimmed when entry is hidden from players */
@@ -638,13 +697,16 @@
 .librarian-panel-host[data-position="left"] i.codex-entry-visibility.visible {
     opacity: 1;
     color: var(--color-border-highlight, #ff6400);
-    text-shadow: 0 0 8px var(--color-shadow-primary);
 }
 .librarian-panel-host[data-position="left"] i.codex-entry-visibility:hover {
     opacity: 1;
 }
 
-/* Codex entry highlight flash on pin double-click (mirrors note-row-highlight) */
+/* Codex entry highlight flash on pin double-click (mirrors note-row-highlight).
+   The alpha here is DELIBERATE and is the exception to the rule at the top of this
+   file: these values are frames of an animation, not a static colour. The whole
+   point is a pulse from faint to full and back, so alpha is what is being animated
+   rather than an accident of layering. Do not "fix" them to opaque. */
 .librarian-panel-host[data-position="left"] .codex-entry.codex-highlighted {
     border: 1px solid rgba(244, 221, 104, 0.2);
     outline: 1px solid rgba(244, 221, 104, 0.7);
@@ -702,7 +764,7 @@
 }
 
 .librarian-codex-page-fields .codex-page-plothook .codex-page-value {
-    background: rgba(128, 127, 112, 0.25);
+    background: var(--blacksmith-tool-surface-sunken, rgba(128, 127, 112, 0.25));
     border-radius: 4px;
     padding: 2px 8px;
 }
@@ -814,9 +876,12 @@
     transition: border-color 0.2s ease, background 0.2s ease;
 }
 
+/* Drop target while a document is being dragged over it. Meaning — "release here"
+   — so the border is the opaque brand; the fill stays a themed surface because it
+   sits behind chips that must stay readable. */
 .librarian-codex-page-edit .codex-page-links-edit.drag-active {
-    border-color: rgba(255, 100, 0, 0.55);
-    background: rgba(255, 100, 0, 0.08);
+    border-color: #ff6400;
+    background: var(--blacksmith-tool-surface-selected, rgba(255, 100, 0, 0.08));
 }
 
 .librarian-codex-page-edit .codex-link-chip {
@@ -923,5 +988,4 @@ html.librarian-codex-pin-placement .librarian-codex-pin-placement-canvas {
 .librarian-panel-host[data-position="left"] .codex-pin-icon.codex-pin-active {
     opacity: 1;
     color: var(--color-border-highlight, #ff6400);
-    text-shadow: 0 0 8px var(--color-shadow-primary);
 }

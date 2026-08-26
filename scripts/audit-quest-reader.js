@@ -41,6 +41,7 @@
 import { MODULE } from './const.js';
 import { QuestParser, normalizeQuestStatus, normalizeQuestCategory } from './utility-quest-parser.js';
 import { getQuestPanel } from './quest-panel-instance.js';
+import { parseParticipant } from './utility-resolver.js';
 
 /** Fields worth comparing. `uuid` and `name` come from the page, not the markup. */
 const SCALARS = ['category', 'originalCategory', 'description', 'plotHook', 'status', 'progress', 'img'];
@@ -70,8 +71,18 @@ function diffEntries(a, b) {
         out.push(`reward.xp: ${a.reward?.xp} -> ${b.reward?.xp}`);
     }
     const names = (list) => (list ?? []).map(x => (typeof x === 'string' ? x : x?.name ?? '')).join('|');
-    for (const key of ['tags', 'participants']) {
-        if (names(a[key]) !== names(b[key])) out.push(`${key}: [${names(a[key])}] -> [${names(b[key])}]`);
+    if (names(a.tags) !== names(b.tags)) out.push(`tags: [${names(a.tags)}] -> [${names(b.tags)}]`);
+
+    // Participants compare by IDENTITY, not by stored form. A bare name that comes back
+    // as an enriched link is resolution working, not a defect, and reporting it buried
+    // the real finding — the same person stored twice — under thirty noisy diffs.
+    const people = (list) => (list ?? [])
+        .map(p => { const { uuid, name } = parseParticipant(p); return uuid || name.toLowerCase(); })
+        .filter(Boolean);
+    const peopleA = people(a.participants);
+    const peopleB = people(b.participants);
+    if (peopleA.length !== peopleB.length || peopleA.some((x, i) => x !== peopleB[i])) {
+        out.push(`participants: ${peopleA.length} [${peopleA.join('|')}] -> ${peopleB.length} [${peopleB.join('|')}]`);
     }
     if (names(a.reward?.treasure) !== names(b.reward?.treasure)) {
         out.push(`reward.treasure: [${names(a.reward?.treasure)}] -> [${names(b.reward?.treasure)}]`);

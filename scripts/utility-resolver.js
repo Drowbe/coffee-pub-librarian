@@ -51,6 +51,18 @@ const CATEGORY_TYPES = {
 };
 
 /**
+ * Split `@UUID[target]{Label}` into its parts. Anything else is a bare name.
+ * @param {string} value
+ * @returns {{uuid: string, name: string}}
+ */
+function parseLinkString(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return { uuid: '', name: '' };
+    const match = raw.match(/^@UUID\[([^\]]+)\]\{([^}]*)\}$/);
+    return match ? { uuid: match[1], name: match[2].trim() } : { uuid: '', name: raw };
+}
+
+/**
  * Pull the uuid and label out of a participant, whatever shape it arrives in.
  *
  * Participants are stored three ways in the same array: a plain name (`"Cyrus Bing"`),
@@ -66,13 +78,18 @@ const CATEGORY_TYPES = {
  */
 export function parseParticipant(participant) {
     if (!participant) return { uuid: '', name: '' };
+
+    // An object's `name` is often itself a link string — the parser builds
+    // `{ name: '@UUID[Actor.x]{Cyrus Bing}' }` for a participant it read out of the
+    // markup but did not resolve. The first version returned that whole link as the
+    // NAME with an empty uuid, so the same person keyed two different ways and the
+    // dedupe collapsed nothing. Unwrap the name in both branches.
     if (typeof participant === 'object') {
-        return { uuid: String(participant.uuid ?? ''), name: String(participant.name ?? '').trim() };
+        const uuid = String(participant.uuid ?? '');
+        const inner = parseLinkString(String(participant.name ?? ''));
+        return { uuid: uuid || inner.uuid, name: inner.name };
     }
-    const raw = String(participant).trim();
-    const match = raw.match(/^@UUID\[([^\]]+)\]\{([^}]*)\}$/);
-    if (match) return { uuid: match[1], name: match[2].trim() };
-    return { uuid: '', name: raw };
+    return parseLinkString(String(participant));
 }
 
 /**
@@ -86,6 +103,52 @@ export function isSameParticipant(participant, actor) {
     const { uuid, name } = parseParticipant(participant);
     if (uuid && actor?.uuid && uuid === actor.uuid) return true;
     return Boolean(name) && name === String(actor?.name ?? '').trim();
+}
+
+/**
+ * Collapse a participant list to one entry per actor, preserving the richest form.
+ *
+ * The same person is routinely stored twice in one list — once as a plain name and
+ * once as an enriched link — because the auto-add guard could not see through a link
+ * string and re-added everyone on every import (TODO C6). That fix stops NEW
+ * duplicates; this collapses the ones already written, so a re-import repairs a page
+ * rather than preserving its damage.
+ *
+ * Two passes, because a bare name cannot be matched to a link until the links are
+ * known: first learn which names have a uuid, then key every entry by that uuid where
+ * one exists. A uuid-bearing entry always wins — it survives a rename and needs no
+ * lookup.
+ *
+ * @param {Array<string|object>} participants
+ * @returns {Array<string|object>} in first-seen order
+ */
+export function dedupeParticipants(participants) {
+    const list = participants ?? [];
+
+    // Pass 1: name -> uuid, for every entry that carries both.
+    const uuidByName = new Map();
+    for (const participant of list) {
+        const { uuid, name } = parseParticipant(participant);
+        if (uuid && name) uuidByName.set(name.toLowerCase(), uuid);
+    }
+
+    // Pass 2: one entry per canonical key, preferring the form that has a uuid.
+    const indexByKey = new Map();
+    const out = [];
+    for (const participant of list) {
+        const { uuid, name } = parseParticipant(participant);
+        const key = uuid || uuidByName.get(name.toLowerCase()) || name.toLowerCase();
+        if (!key) continue;
+
+        const at = indexByKey.get(key);
+        if (at === undefined) {
+            indexByKey.set(key, out.length);
+            out.push(participant);
+        } else if (!parseParticipant(out[at]).uuid && uuid) {
+            out[at] = participant;
+        }
+    }
+    return out;
 }
 
 export function typeForCategory(category) {

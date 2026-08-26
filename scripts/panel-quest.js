@@ -23,7 +23,7 @@ import {
 import { copyToClipboard, getNativeElement, renderTemplate, getTextEditor, getPartyActors, showBlacksmithWait, fillCampaignPlaceholders, showLibrarianToast } from './helpers.js';
 import { trackModuleTimeout, clearTrackedTimeout, moduleDelay } from './timer-utils.js';
 import { showJournalPicker } from './utility-journal.js';
-import { resolveEntries, reportResolution, isSameParticipant } from './utility-resolver.js';
+import { resolveEntries, reportResolution, isSameParticipant, dedupeParticipants } from './utility-resolver.js';
 
 const QUEST_PIN_BACKGROUND     = '#682008';
 const OBJECTIVE_PIN_BACKGROUND = '#8c2d0d';
@@ -3741,7 +3741,9 @@ export class QuestPanel {
         }
         
         if (participantsToUse && participantsToUse.length) {
-            const normalized = participantsToUse.map(p => (typeof p === 'string' ? { name: p } : p));
+            // Dedupe before resolving: pages written before the C6 fix carry each
+            // person twice, once as a link and once as a bare name.
+            const normalized = dedupeParticipants(participantsToUse).map(p => (typeof p === 'string' ? { name: p } : p));
             const { links, report } = await resolveEntries(normalized, 'actor');
             this._resolveReports?.push(report);
             const participantList = links.filter(p => p).join(', ');
@@ -4007,7 +4009,8 @@ export class QuestPanel {
         }
         
         if (quest.participants && quest.participants.length) {
-            const normalized = quest.participants.map(p => (typeof p === 'string' ? { name: p } : p));
+            // See the merge path above — same repair, same reason.
+            const normalized = dedupeParticipants(quest.participants).map(p => (typeof p === 'string' ? { name: p } : p));
             const { links, report } = await resolveEntries(normalized, 'actor');
             this._resolveReports?.push(report);
             const participantList = links.filter(p => p).join(', ');

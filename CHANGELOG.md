@@ -27,6 +27,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Quest import could not set task state or progress, and re-import silently reset them.** Both quest content writers emitted a bare `<li>` for every task, while the reader decodes `<s>` as completed, `<code>` as failed and `<em>` as hidden — so **the writer could not express what the reader could read.** Measured across all 30 production quests: every one round-tripped `completed`, `failed` and `hidden` back to `active`, and `progress: 71` back to `0`. Neither writer emitted a Progress line at all.
+
+  A shared `_wrapTaskState` now encodes state exactly as the reader decodes it, used by both writers so the two halves cannot drift again, and both emit Progress. `_extractExistingState` learned to read Progress back, so a re-import preserves it.
+
+  Two more surfaced while fixing it. The merge path only wrapped state it found already on the page, so a **newly added task landed as `active` however the payload described it** — it now falls back to the import's state, with existing state still winning so a GM ticking a task off is not undone by a re-import. And `_extractExistingState` defaulted `status` to the literal `'Not Started'`, which is truthy, so `existingState.status || importedQuest.status` always took the existing branch and **a re-import could never change a quest's status.** It now starts empty.
+
+- **Every party member was re-added to a quest on every import.** The auto-add guard tested `p === actor.name`, but participants are stored as enriched link strings — `@UUID[Actor.abc]{Cyrus Bing}` — so the comparison was always false. Production pages already carried each party member twice, once as a link and once as a bare name.
+
+  New `parseParticipant` / `isSameParticipant` / `dedupeParticipants` in `utility-resolver.js` handle all the shapes participants are stored in and compare on uuid first, name second. Both auto-add sites use them, and both writers dedupe before resolving, so a re-import **repairs** an already-damaged page rather than preserving its damage.
+
+  The first version of the parser had the same class of bug it was written to fix: an object whose `name` is itself a link string was read as a name with no uuid, so one person keyed two different ways and nothing collapsed. Both branches now unwrap through a shared `parseLinkString`.
+
+- **A blank quest description made the reader absorb the fields that followed it.** `description: ""` parsed back as `"Category: Side Quest
+
+Participants: …"` — the whole document. The writer skipped the Description line for a blank string exactly as for an absent one, and the reader has an explicit *"if no description, use all text content"* fallback that then claimed everything after it.
+
+  The writer now distinguishes blank from absent, and the fallback is gated on whether the page carried **any** structured field rather than on whether Description happened to be empty. The fallback itself is still wanted: a quest written by hand, with no field markup at all, should read as prose.
+
+  This is the fourth blank-versus-absent defect found in this file, after the two above and the codex `expandedDetails` rule. The shared cause, in Blacksmith's words: *testing a parsed value cannot tell you whether the thing was there.*
+
 - **Quest import threw on every quest, and reported it as `Invalid JSON.`** `game.settings.get(MODULE.ID, 'autoAddPartyMembers')` was called by both quest content writers — `_mergeJournalContent` on the update path and `_generateJournalContentFromImport` on the create path — and that setting was registered nowhere. Foundry's `game.settings.get` throws on an unregistered key rather than returning undefined, so the first quest of any import killed the run.
 
   **The error message is why this survived.** There is no per-quest try/catch; the outer handler in the import dialog caught the throw and reported `Invalid JSON.` So the failure named the wrong cause, pointed at the user's payload, and the payload was always fine. It came across from Squire without its registration, the same way the dead quest-collapse code and the orphaned pin tooltip did.

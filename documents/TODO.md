@@ -24,27 +24,26 @@ Open work for Coffee Pub Librarian, ordered by severity.
 Things they need to hear, held here rather than in a conversation so they survive one.
 Delete a line when it has been sent.
 
-- **Quest import has not been exercised since the tag migration.** We had stopped
-  testing it while waiting on their importer work, and separately it could not have
-  worked at all — see **C5**, where `autoAddPartyMembers` was read but never registered,
-  so every import threw and reported `Invalid JSON.` Both facts matter to them: the
-  first because they are sequencing our profile against it, the second because it is
-  another instance of their own "reading is not exercising" argument, found by a harness
-  built *because* of their reader-defect rule.
-- **The H12 audit results**, once both trips run clean. They asked to hear what a real
-  reader audit turns up, and the answer so far is a Critical bug that had nothing to do
-  with reading and everything to do with running.
-- **The result of their tag-registry audit utility** (`utilities/audit-tag-registry.js`).
-  They have never run it; ours is the only world with a real vocabulary, and they
-  explicitly want to know whether its three buckets match the classification we reached
-  by hand. If they disagree, one of us is wrong and they want to know which.
-- **That `getTagCounts` works**, once the cloud is built on it — it is unexercised on
-  their side too.
+**Sent 2026-08-26:** the dev-world caveat on every measurement we had given them, the
+registry-audit result, and the H12 reader-audit findings. Both threads are closed with
+nothing owed back except the item below.
+
+- **Production migration numbers, when H2 runs there.** They asked specifically, and it
+  will be the first measurement either side has taken against real content. The open
+  question the dev world could not answer is **whether the singleton pattern survives** —
+  452 tags with 264 used once told us little, because an unknown share of it was our own
+  test noise. Capture the vocabulary report before curating anything in production.
+- **That `getTagCounts` works**, once the codex tag cloud is built on it — it is
+  unexercised on their side too.
 - **Our lang file did not exist.** `TYPES.JournalEntryPage.coffee-pub-librarian.codex`
   was specified in the data-model plan and never built, so the "Add Page" type picker
-  showed the raw key. Worth a line to them only because module-declared subtypes are
-  something their declaration model will generate, and a missing `languages` entry is an
-  easy thing for a generator to forget.
+  showed the raw key. Worth a line only because module-declared subtypes are something
+  their declaration model will generate, and a missing `languages` entry is an easy
+  thing for a generator to forget.
+- **Quest import still has not been exercised end-to-end.** It could not run at all
+  until **C5** was fixed, and has not been tried since the tag migration. The next
+  import is the first real exercise of that path in months — tell them how it goes,
+  since they are sequencing our profile against it.
 
 ---
 

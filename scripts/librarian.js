@@ -221,7 +221,10 @@ Hooks.once('ready', async () => {
                     icon: 'fa-solid fa-book',
                     label: 'Codex',
                     tooltip: 'Open the codex',
-                    zone: 'left',
+                    // `middle` is the centred region, and it is also the documented
+                    // default — these were explicitly set to `left`, which pinned them
+                    // to the left edge of a bar that carries nothing else.
+                    zone: 'middle',
                     group: 'browsers',
                     order: 10,
                     onClick: () => openBrowser('codex', 'The codex is not ready yet.')
@@ -230,7 +233,7 @@ Hooks.once('ready', async () => {
                     icon: 'fa-solid fa-flag',
                     label: 'Quests',
                     tooltip: 'Open the quest log',
-                    zone: 'left',
+                    zone: 'middle',
                     group: 'browsers',
                     order: 20,
                     onClick: () => openBrowser('quest', 'The quest log is not ready yet.')

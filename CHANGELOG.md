@@ -27,6 +27,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The codex read as washed-out and pastel beside every other Tool window, and the cause was a rule this project wrote for itself.** An earlier theming pass ruled that a colour literal at low alpha "tints the themed surface beneath rather than replacing it, and is fine under a themed foreground." That is true of *contrast* — the text stays legible — and false of everything else. A 20%-alpha red is muted brick over a dark panel and pale pink over parchment, so six brand colours at 0.08–0.4 alpha changed the panel's entire character between Light and Dark while passing every check that had been applied to them.
+
+  `panel-codex.css` now opens with the rule that replaces it: every colour is **chrome** — surfaces, borders, dividers, secondary text, written as `var(--blacksmith-tool-*)` and following the theme — or **meaning** — brand, state, an affordance the eye must find, written **opaque**. There is no third category. A brand colour at low alpha claims to be constant and is not.
+
+  Applied throughout: plot-hook and page-value surfaces take themed tokens; tag chips became chrome (there are ninety on screen and they are navigation, not emphasis) while a *selected* chip is the opaque brand orange; the pin-flash animation keeps its alpha because there the alpha is the thing being animated, and is annotated so it is not "fixed" later.
+
+- **Orange stopped meaning "link".** Brand orange is hover and selected state everywhere else in the suite, and using it at rest turned every resolved name — dozens per card — into a demand for attention. Links now take the theme's text colour and go orange on hover.
+
+  Three separate link systems had to be brought into line, which is why the first two attempts left some links orange: our own `.codex-ref` markup, the same markup on the journal page sheet, and Foundry's enriched `@UUID` anchors, which are styled by a different rule entirely and had no hover state at all. **READ MORE** was an outlined brand-orange pill and is now a plain link — every card has one and none of them is what the reader came for, so it was the loudest element on screen while carrying the least.
+
+  Also removed: three `text-shadow: 0 0 8px` glows behind icons, all link underlines, and the `opacity: 0.55` italics on unresolved names, which are real content awaiting a page rather than an error state.
+
+- **Light theme was unreadable at codex density, and we now override three of Blacksmith's tokens to fix it.** Their Light palette is tuned for sparse windows — Compendium Search is a list of names. A codex card is a label, a summary, a plot hook, links, related names, four location rows and a tag strip. `text-muted` at 55% brown is fine for one subtitle and illegible for six stacked labels; their `border` is pale tan on pale ground, so card edges vanish.
+
+  `styles/window-codex-browser.css` raises `text-muted`, `border` and `divider`, scoped to the codex browser **and** to Light only. Dark and Glass are untouched. Removing the block restores their palette exactly. Recorded as **M14** and flagged to raise with Blacksmith: this is a density their values were not designed for, not a bug on their side.
+
+- **The filter row's padding, after several failed attempts in the wrong file.** The filter icon sat mashed against the window's right edge. `panel-codex.css` gives `.codex-filters` an 8px inset — and `window-codex-browser.css` overrode the whole shorthand with `padding: 2px 0` when the filters moved into the toolbar, discarding the horizontal half. Every fix applied to the panel stylesheet was thrown away by that one line. Now `padding: 8px` on all four sides, with a comment on the rule saying so.
+
+  Two more in the same row: the clear button was `position: absolute; right: 28px` against the *whole row* rather than the input, leaving a dead gap; and the tag cloud painted its own `surface-sunken` background with a 4px radius inside `.codex-filters`, which paints `scrim` at 6px — two filled boxes with mismatched corners, so the outer one showed through. The cloud is transparent now, and its right padding accounts for the scrollbar, which is laid out *inside* the padding box and therefore makes symmetric padding look asymmetric.
+
+- **The menubar is one "Librarian" button opening a secondary bar**, rather than two flat tools spending two slots of menubar width on one module. Codex and Quests are items on that bar, centred in its middle zone; picking either opens the browser and closes the bar, since it is a launcher and not a mode. Falls back to opening the codex directly if the secondary-bar API is unavailable, so an older Blacksmith gets the previous behaviour rather than a dead button.
+
+- **The module shipped no localization at all.** No `lang/` directory and no `languages` entry in the manifest, so Foundry's "Add Page" type picker showed the raw key `coffee-pub-librarian.codex` instead of a name. `TYPES.JournalEntryPage.coffee-pub-librarian.codex` → "Codex Entry" was specified in the data-model plan under a phase marked complete, and was never built.
+
 - **Quest import could not set task state or progress, and re-import silently reset them.** Both quest content writers emitted a bare `<li>` for every task, while the reader decodes `<s>` as completed, `<code>` as failed and `<em>` as hidden — so **the writer could not express what the reader could read.** Measured across all 30 production quests: every one round-tripped `completed`, `failed` and `hidden` back to `active`, and `progress: 71` back to `0`. Neither writer emitted a Progress line at all.
 
   A shared `_wrapTaskState` now encodes state exactly as the reader decodes it, used by both writers so the two halves cannot drift again, and both emit Progress. `_extractExistingState` learned to read Progress back, so a re-import preserves it.

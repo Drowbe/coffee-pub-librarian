@@ -36,11 +36,20 @@ jobs:
 
       # Create zip file
       #
-      # Ships only what Foundry loads plus what a user needs in hand: `macros/`
-      # carries the Squire migrations, which are useless to someone who only has
-      # the installed module. `documents/` (design notes) and `testing/`
-      # (pre-flight + manual checklist) are deliberately excluded — they are for
+      # Ships only what Foundry loads. `documents/` (design notes) and `testing/`
+      # (pre-flight, probes and fixtures) are deliberately excluded — they are for
       # working on the module, not running it.
+      #
+      # THIS LIST MUST MATCH THE MANIFEST. Anything module.json references has to be
+      # here, or Foundry refuses to install with "The file X included by module
+      # coffee-pub-librarian does not exist" — the install fails outright rather than
+      # degrading. That is exactly how `lang/en.json` broke a release: the language
+      # file was added and declared in the manifest, and this list was not updated.
+      #
+      # `macros/` was listed here long after the directory was deleted with the Squire
+      # migration tooling. `zip` does not fail on a missing path, so a STALE entry is
+      # silent while a MISSING one is fatal — check both directions when you touch
+      # this, because only one of the two mistakes announces itself.
       - name: Create Zip File
         run: |
           zip -r coffee-pub-librarian.zip \
@@ -51,7 +60,7 @@ jobs:
             scripts/ \
             styles/ \
             templates/ \
-            macros/ \
+            lang/ \
             prompts/ \
             -x "*.git*" -x "*.github*" -x "*node_modules*" -x "*dist*" -x "*.vscode*"
 

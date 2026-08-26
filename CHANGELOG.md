@@ -5,9 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+
+## [13.1.1]
+
+### Fixed
+
+- **The module shipped no localization at all.** No `lang/` directory and no `languages` entry in the manifest, so Foundry's "Add Page" type picker showed the raw key `coffee-pub-librarian.codex` instead of a name. `TYPES.JournalEntryPage.coffee-pub-librarian.codex` → "Codex Entry" was specified in the data-model plan under a phase marked complete, and was never built.
+
 ## [13.1.0]
 
 ### Changed
+
+- **Blacksmith minimum raised to 13.20.0.** The codex tag work depends on four things that were unreleased at the time it was written and shipped in 13.20.0: the serialised tag write queue, the removal of the pin mirror's assignment rows, the rename refusal logging that the curation sweep branches on, and `deleteRecordTags` firing a change hook.
+
+  The manifest previously required 13.19.0, which would have allowed Librarian 13.1.0 to install against a Blacksmith with none of it. The worst pairing is not cosmetic: against the old write path a **player** client computed the whole tag-assignments object locally and shipped it to the GM to write verbatim, so a player holding a stale snapshot would overwrite every context key for every module in the world. Our own migration awaits sequentially and would have survived it; a connected player would not have.
 
 - **Codex tags moved out of Librarian and into Blacksmith's central tag store.** `api-tags.md` is explicit — *"All tag assignments are stored in a Blacksmith world setting. Consuming modules do not store tags in their own record data"* — and `system.tags` was a direct contradiction of it. 342 entries migrated in the development world; `system.tags` is now empty on every codex page and the central store is the only copy.
 

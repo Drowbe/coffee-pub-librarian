@@ -146,5 +146,35 @@ for d, _, fs in os.walk('templates'):
         for n in sorted(names - BUILTIN - FOUNDRY - provided):
             fail.append('HELPER %s -> "%s" has no registered provider' % (pth, n))
 
+# 8. every manifest-declared path is actually in the release zip
+#
+# Check 2 asks whether a declared path exists ON DISK. That is a different question:
+# a file can be present here and absent from the shipped archive, and Foundry then
+# REFUSES THE INSTALL -- "The file X included by module ... does not exist" -- rather
+# than degrading. That is exactly how lang/en.json broke a release: added, declared,
+# present locally, and missing from the workflow's zip list.
+#
+# Both directions are checked, because only one of them announces itself. A MISSING
+# entry is fatal at install time; a STALE entry is silent, since zip does not fail on
+# a path that is not there -- `macros/` sat in the list long after the directory was
+# deleted with the Squire migration tooling.
+WORKFLOW = os.path.join('.github', 'workflows', 'release.yml')
+if os.path.exists(WORKFLOW):
+    wf = io.open(WORKFLOW, encoding='utf-8').read()
+    zipped = set(re.findall(r'^\s{10,}([A-Za-z0-9_.-]+/)\s*\\\s*$', wf, flags=re.M))
+    if zipped:
+        for key in ('esmodules', 'styles', 'languages', 'packs'):
+            for entry in m.get(key, []):
+                path = entry if isinstance(entry, str) else entry.get('path', '')
+                if not path or '/' not in path:
+                    continue
+                top = path.split('/')[0] + '/'
+                if top not in zipped:
+                    fail.append('RELEASE %s is declared in module.json but %s is not zipped'
+                                % (path, top))
+        for entry in sorted(zipped):
+            if not os.path.isdir(entry.rstrip('/')):
+                fail.append('RELEASE the zip list includes %s, which does not exist' % entry)
+
 print('\n'.join(sorted(set(fail))) if fail else 'ALL CHECKS PASS')
 print('(%d js files checked, as modules)' % len(js))

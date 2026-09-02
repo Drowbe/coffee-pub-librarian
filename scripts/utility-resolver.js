@@ -3,7 +3,7 @@
  *
  * Blacksmith owns the GM's compendium mapping and the name -> UUID resolver.
  * Librarian never searches packs, reads Blacksmith's settings, or hand-builds
- * search order. See documents/architecture/architecture-codex.md and the
+ * search order. See documentation/architecture/architecture-codex.md and the
  * Blacksmith repo's documentation/api/api-compendiums.md.
  */
 

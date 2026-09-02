@@ -7,14 +7,14 @@ Open work for Coffee Pub Librarian, ordered by severity.
 - **One item, one ID.** IDs are stable and are never reused — reference them in
   commits and PRs.
 - **Nothing is finished until the docs are.** When an item lands, update the
-  affected `documents/architecture/*.md`, the relevant Blacksmith API notes, and
+  affected `documentation/architecture/*.md`, the relevant Blacksmith API notes, and
   `CHANGELOG.md` in the same commit. If it isn't logged, it isn't done.
 - **The tables track; the body explains.** When an item closes, its row moves to
   [Closed](#closed) with a pointer to where the work is recorded, and **its body
   section is deleted**. The context that section carried — the reasoning, the file
   references, the failure modes — has by then been written into the architecture
   doc and the changelog, so keeping a second copy here only lets the two drift.
-- **Implemented plans are deleted.** A plan in `documents/plans/` lives only until
+- **Implemented plans are deleted.** A plan in `documentation/plans/` lives only until
   every phase has shipped and been recorded elsewhere.
 - **Severity is about the user, not the effort.** Critical means broken in shipped
   code. Size (S/M/L) is a separate column.
@@ -22,7 +22,16 @@ Open work for Coffee Pub Librarian, ordered by severity.
 ## Owed to Blacksmith
 
 Things they need to hear, held here rather than in a conversation so they survive one.
-Delete a line when it has been sent.
+
+**This is a staging area, and it is only legitimate while it empties.** Cross-module work
+belongs in the hub's `TODO-GLOBAL.md`; a satellite cannot write that file, so an item waits
+here until the handoff lands and is deleted the moment it does. A section that stops
+emptying has become a second backlog, which is the thing the rule guards against.
+
+**Re-verify every `file.js:120` reference at the moment of handover**, not when it was
+written. A line number rots without anyone editing it, and the dangerous shape is a
+citation that is still valid while the real defect has moved above it: someone fixes the
+cited line, sees no change, and closes the item.
 
 **Sent 2026-08-26:** the dev-world caveat on every measurement we had given them, the
 registry-audit result, and the H12 reader-audit findings. Both threads are closed with
@@ -67,6 +76,7 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **H12** | High | Quests | Audit the quest HTML reader before A1 converts anything | M |
 | **M14** | Medium | Blacksmith API **[EXT]** | We override Blacksmith's Light theme tokens locally; raise it with them | S |
+| **M15** | Medium | Docs | Eight user guides written from source, unwalked and unscreenshotted | M |
 | **M13** | Medium | Codex | Players do not see an entry become visible until they reopen | M |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **L10** | Low | Blacksmith API **[EXT]** | Orphan-tag check: deliberately not built, blocked upstream | S |
@@ -425,7 +435,7 @@ profiles supply them, so **a codex entry that fails will name the field.**
 item rather than a parallel cleanup.
 
 **Field mappings are written down** in
-[`documents/plans/declaration-field-mappings.md`](plans/declaration-field-mappings.md) —
+[`documentation/plans/plan-declaration-field-mappings.md`](plans/plan-declaration-field-mappings.md) —
 codex and quest, friendly field → target path, plus the seven genuinely-computed cases.
 That file is raw input for Blacksmith; delete it once their declarations exist.
 
@@ -536,6 +546,49 @@ produced the rule now recorded at the top of that file — chrome versus meaning
 a brand colour at low alpha. The pastel appearance that prompted all this was translucent
 brand colours over a light ground, which is a consumer mistake rather than a palette one.
 Worth sending them alongside this, since it is the more useful half.
+
+---
+
+### M15 — The user guides are drafts until someone walks them
+
+Eight guides were written during the documentation-standard adoption, from source rather
+than from a running world. Under the suite standard that makes every one of them a draft:
+*"a guide derived from reading source is a draft until somebody has walked it, and which
+claims have not been walked is worth saying out loud."*
+
+Labels were quoted from `scripts/settings.js` and from the `title=` attributes in the
+templates rather than guessed, which is the best available without a world open. That fixes
+the wording and fixes nothing else.
+
+**What is specifically unverified:**
+
+- **Ordering.** Source cannot say what order anything renders in. The quest status filters
+  are described as Active, Available, then Complete and failed; the codex card is described
+  as summary, plot hook, links, related, location, tags. Both are read off the template and
+  neither has been looked at.
+- **The objective click behaviour**, which is the highest-value claim in the quest guide and
+  the least discoverable: left-click completes, middle-click hides, right-click fails for a
+  GM, and a player's click sets their active objective. Taken from a `title` attribute in
+  `templates/partials/quest-entry.hbs`. If it is wrong, it is wrong about the one thing a
+  reader cannot work out for themselves.
+- **Everything in the player guide.** Written entirely from ownership logic and template
+  conditionals. Nobody has sat at a player client and confirmed what is absent.
+- **The Squire migration paragraph** in the getting-started guide. It describes re-import as
+  the conversion path for Squire-era codex pages, which is true of the code; whether it is
+  true of a world that actually has such pages has not been tried since the migration
+  tooling was deleted.
+- **The claim that hovering a pin shows a name in the `Quest 3.02:` form.** Read from the
+  pin construction in `manager-quest-pins.js`, not seen on a canvas.
+
+**No screenshots at all**, which is why `documentation/assets/` holds only a `.gitkeep`. The
+standard is explicit that no screenshot beats a wrong one, and that screenshots are how the
+wrong claims surface: three other modules published guides written this way and every one
+that later got captures found wrong labels. Expect the same here.
+
+**How this closes:** walk each guide with a world open, fix what is wrong, add captures to
+`documentation/assets/`, then delete this item. Walking the player guide needs a second
+client logged in as a player, which is the part most likely to be skipped and the part
+covering the readers least able to correct it themselves.
 
 ---
 
@@ -663,7 +716,7 @@ document paths), so this is not close and should not be scheduled against a near
 
 **What is not blocked, and is A1's input either way:** the quest field inventory and
 the codex/quest discriminator, both already written down in
-[`plans/declaration-field-mappings.md`](plans/declaration-field-mappings.md). The
+[`plans/plan-declaration-field-mappings.md`](plans/plan-declaration-field-mappings.md). The
 quest column there is a *proposal* — those target paths do not exist yet. When A1
 lands it should implement that column rather than inventing its own.
 

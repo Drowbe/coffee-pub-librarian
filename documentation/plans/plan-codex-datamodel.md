@@ -4,7 +4,7 @@
 
 Phases 1 (model + sheet), 2 (consumers) and 4 (`related`, retain-unresolved links,
 the Auto-Link rescan) are live and are now recorded in `CHANGELOG.md` under 13.0.0
-and `[Unreleased]`, plus `documents/architecture/architecture-codex.md`. Phase 3 was
+and `[Unreleased]`, plus `documentation/architecture/architecture-codex.md`. Phase 3 was
 verification, and the codex has been running on the data model in production
 throughout. `related` gained its edit and view surfaces in `[Unreleased]`.
 
@@ -113,7 +113,7 @@ Model decisions: `img` and `link.uuid` are lenient `StringField`s (not `FilePath
 - [x] Edit Entry window: prefill including lore, location combos, multi-link display, mandatory-field validation
 - [ ] Export → JSON carries `summary`/`links`/`expandedDetails`; wipe → re-import round trip
 - [ ] New-entry creation from a blank Edit Entry window (post-validation save path)
-- [ ] Journal page edit form's links drop zone (drag to add, ✕ to remove)
+- [ ] Journal page edit form's links drop zone (drag to add, remove control to remove)
 - [ ] Auto-discovery scan: `system.discoveredBy` written, ownership flipped, Discovered By shows on card/page
 - [ ] Player-permission pass: hidden entries invisible; discovered entries readable; plot hook GM-only; Read More works for players
 - [ ] Codex pins on typed pages: place, unplace, double-click navigation

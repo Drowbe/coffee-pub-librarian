@@ -36,7 +36,7 @@ jobs:
 
       # Create zip file
       #
-      # Ships only what Foundry loads. `documents/` (design notes) and `testing/`
+      # Ships only what Foundry loads. `documentation/` (design notes) and `testing/`
       # (pre-flight, probes and fixtures) are deliberately excluded — they are for
       # working on the module, not running it.
       #

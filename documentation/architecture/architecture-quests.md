@@ -1,5 +1,10 @@
 # Coffee Pub Librarian – Quest System Architecture
 
+**Audience:** Someone changing quests, and the rest of the suite.
+
+How quests are built and why: the HTML-parsed storage they still use, the canvas pin
+integration, and the reader/writer contract a future data model has to preserve.
+
 ## Overview
 
 The Quest system provides structured adventure and task management for FoundryVTT. It features quest creation, progress tracking, visual scene integration via canvas pins, and rich metadata management. The system uses FoundryVTT's native Journal system as its data store. Pins are rendered and persisted via the **Blacksmith Pins API** (coffee-pub-blacksmith).
@@ -19,7 +24,6 @@ The Quest system provides structured adventure and task management for FoundryVT
 | `templates/window-quest.hbs` | Blacksmith V2 quest window template |
 
 | `templates/partials/quest-entry.hbs` | Quest entry partial |
-| `templates/tooltip-pin-quests-objective.hbs` | Objective pin tooltip — **designed, not wired**; see TODO **L8** |
 | `styles/panel-quest.css` | Panel styles |
 | `styles/window-quest.css` | Quest window styles |
 | `styles/quest-markers.css` | Pin marker styles |
@@ -128,14 +132,14 @@ Visual representation of quests and objectives on the canvas via `pins.create()`
 | `text` | `Q{questIndex}` | `Q{questIndex}.{objectiveIndex+1}` |
 | `size` | 32 | 28 |
 | `style.fill` | From status/state (see below) | From objective state |
-| `config.questUuid` | ✓ | ✓ |
-| `config.questIndex` | ✓ | ✓ |
-| `config.questCategory` | ✓ | ✓ |
-| `config.questStatus` | ✓ | — |
-| `config.questState` | ✓ (`visible`/`hidden`) | ✓ |
-| `config.objectiveIndex` | — | ✓ |
-| `config.objectiveState` | — | ✓ |
-| `config.objectiveText` | — | ✓ |
+| `config.questUuid` | yes | yes |
+| `config.questIndex` | yes | yes |
+| `config.questCategory` | yes | yes |
+| `config.questStatus` | yes | — |
+| `config.questState` | yes (`visible`/`hidden`) | yes |
+| `config.objectiveIndex` | — | yes |
+| `config.objectiveState` | — | yes |
+| `config.objectiveText` | — | yes |
 | `ownership` | `calculateQuestPinOwnership(page)` | `calculateQuestPinOwnership(page, objective)` |
 
 **Quest Status → Pin Color:**
@@ -294,9 +298,11 @@ The quest system supports full JSON export/import including scene pins.
 
 - **Journal:** `manager-journal-routing.js` registers `createJournalEntryPage`,
   `updateJournalEntryPage` and `deleteJournalEntryPage` with **native `Hooks.on`**,
-  not Blacksmith's HookManager — a deliberate exception, argued in that file's header
-  and open as TODO **A2**. It re-renders whichever campaign panel owns the page's
-  journal, skipping while that panel reports `isImporting`.
+  not Blacksmith's HookManager — a deliberate exception, argued in that file's header.
+  It re-renders whichever campaign panel owns the page's journal, skipping while that
+  panel reports `isImporting`. The trade is that it forfeits HookManager's keyed dedupe
+  and `disposeByContext`, and its ordering against Blacksmith's own watchers on the same
+  three hooks is unspecified.
 - **Pins:** `manager-quest-pins.js` subscribes through the Blacksmith Pins API
   (`pins.on(...)`), not Foundry hooks: `doubleClick` reveals a quest in the browser,
   and `updated` warns a GM who edits a pin's visibility in Configure Pin — that

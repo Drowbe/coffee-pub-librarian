@@ -1,5 +1,10 @@
 # Coffee Pub Librarian – Codex System Architecture
 
+**Audience:** Someone changing the codex, and the rest of the suite.
+
+How the codex is built and why: the declared `JournalEntryPage` subtype behind it, where
+entry data lives, and the failure modes that shaped the current design.
+
 ## Overview
 
 The Codex system is a journal-based world-building and reference system. It organizes characters, locations, items, events, and other entities with rich metadata, search, and filtering. Each entry is a journal page in a designated codex journal; the panel displays entries by category with tag-based filtering and supports import/export and auto-discovery from party inventories.
@@ -24,8 +29,9 @@ slide-in transform and would fight a window frame.
 lookaside — something you keep open beside the canvas and search mid-session, which
 is a palette. Blacksmith's own Compendium Search is the reference implementation.
 Quests went the other way, staying on the standard base because they are heading for
-a list-plus-detail layout that wants width and fills the screen. See TODO **A6** for
-the full reasoning; the short version is that the two stopped being the same shape.
+a list-plus-detail layout that wants width and fills the screen. The two stopped being
+the same shape once quests headed for a detail pane, which is why they no longer share
+a base class.
 
 The window owns its chrome: the title bar carries Add Entry and the codex options
 menu as Tool header actions, and the footer carries an entry count and a status slot
@@ -340,7 +346,8 @@ loops. The idiom exists to strip listeners a node already carries, but it ran
 immediately after `container.innerHTML = html`, so every node it touched was
 microseconds old and carried none: roughly 2,200 deep subtree clones per render on a
 314-entry codex, achieving nothing. `panel-quest.js` still does it the old way, at
-seventeen sites; see TODO **A1**.
+seventeen sites, because it is still an HTML-parsed panel and the rewrite that removes
+the idiom there is the same one that removes the parsing.
 
 Two related consequences of the same rewrite:
 

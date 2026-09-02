@@ -1,6 +1,29 @@
 import { MODULE } from './const.js';
+import { normalizeTag } from './utility-tags.js';
 
 export const QUEST_CATEGORIES = Object.freeze(['Main Quest', 'Side Quest']);
+
+/**
+ * Fold a raw tag list to the single form the rest of the module compares against.
+ *
+ * Quest tags used to be trimmed and de-duplicated and nothing more, so a quest could store
+ * `melvaunt, bcod, investigation, Side, Exploration` -- three lowercase, two capitalised, in
+ * one quest. `new Set` over case-varying strings keeps both, so the tag cloud grew a `Side`
+ * chip and a `side` chip, and the filter's exact-match `includes` dropped every quest that
+ * spelled it the other way. Nothing on screen said a filter was discarding matches. (M16)
+ *
+ * This is deliberately `normalizeTag` -- the same function the codex has always used -- and
+ * not a bare `toLowerCase`. The defect observed was case, but the codex hyphenates whitespace
+ * too, and half-matching it would leave the two panels still disagreeing about what a tag is.
+ * The consequence is that a multi-word quest tag becomes hyphenated on its next write:
+ * `Main Story` stores as `main-story`. That is a visible change to existing content, and it is
+ * the form quest tags have to reach anyway when they move to Blacksmith's store (H2/A1), so
+ * doing it here is one conversion instead of two.
+ */
+export function normalizeTagList(tags) {
+    if (!Array.isArray(tags)) return [];
+    return Array.from(new Set(tags.map(normalizeTag).filter(Boolean)));
+}
 
 export function normalizeQuestCategory(category) {
     return String(category || '').trim() === 'Main Quest' ? 'Main Quest' : 'Side Quest';
@@ -366,8 +389,9 @@ export class QuestParser {
             });
         }
 
-        // Deduplicate and trim tags
-        entry.tags = Array.from(new Set(entry.tags.map(t => t.trim())));
+        // Deduplicate, trim and case-fold tags. Every read of a quest page funnels through
+        // here, so this is the one place the reader can guarantee a single tag form.
+        entry.tags = normalizeTagList(entry.tags);
 
         const legacyOriginalCategory = page.getFlag?.(MODULE.ID, 'originalCategory');
         entry.category = normalizeQuestCategory(legacyOriginalCategory || entry.category);

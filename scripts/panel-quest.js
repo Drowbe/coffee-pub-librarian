@@ -3,8 +3,7 @@ import {
     QuestParser,
     QUEST_CATEGORIES,
     normalizeQuestCategory,
-    normalizeQuestStatus
-} from './utility-quest-parser.js';
+    normalizeQuestStatus, normalizeTagList } from './utility-quest-parser.js';
 import {
     getPinsApi,
     isPinsApiAvailable,
@@ -3751,8 +3750,11 @@ export class QuestPanel {
         }
         
         // Tags
-        if (importedQuest.tags && importedQuest.tags.length) {
-            content += `<p><strong>Tags:</strong> ${importedQuest.tags.join(', ')}</p>\n\n`;
+        // An imported quest arrives straight from JSON and never passes through the reader,
+        // so this is its only chance to be folded to one tag form (M16).
+        const importedTags = normalizeTagList(importedQuest.tags);
+        if (importedTags.length) {
+            content += `<p><strong>Tags:</strong> ${importedTags.join(', ')}</p>\n\n`;
         }
         
         return content;
@@ -4016,8 +4018,9 @@ export class QuestPanel {
             const participantList = links.filter(p => p).join(', ');
             content += `<p><strong>Participants:</strong> ${participantList}</p>\n\n`;
         }
-        if (quest.tags && quest.tags.length) {
-            content += `<p><strong>Tags:</strong> ${quest.tags.join(', ')}</p>\n\n`;
+        const questTags = normalizeTagList(quest.tags);
+        if (questTags.length) {
+            content += `<p><strong>Tags:</strong> ${questTags.join(', ')}</p>\n\n`;
         }
         return content;
     }

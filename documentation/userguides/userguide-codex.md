@@ -9,6 +9,8 @@ The codex is a list of everything in your world worth remembering: people, place
 factions, artifacts, events. Open it from the **Librarian** button in the menubar, then
 **Codex**.
 
+![One codex entry in three places: its card in the browser, the edit sheet, and the journal page holding it](../assets/librarian-codex.webp)
+
 ## Add an entry
 
 GM only.

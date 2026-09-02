@@ -14,6 +14,8 @@ Librarian gives a campaign two things: a **codex** of everything in your world, 
 already write them and import them; look anything up mid-session without leaving the
 canvas; reveal an entry to your players the moment they earn it.
 
+![The codex and quest browsers open either side of a scene, with the Librarian menubar button above them](documentation/assets/librarian-product.webp)
+
 ## What it does
 
 - **A searchable codex** of characters, locations, factions and artifacts, grouped by

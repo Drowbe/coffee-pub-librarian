@@ -76,7 +76,8 @@ extension from Blacksmith** rather than working around it locally. Items tagged
 | **H6** | High | Blacksmith API | Adopt `api.importer` — **blocked**: contract withdrawn, declaration model replacing it | L |
 | **H12** | High | Quests | Audit the quest HTML reader before A1 converts anything | M |
 | **M14** | Medium | Blacksmith API **[EXT]** | We override Blacksmith's Light theme tokens locally; raise it with them | S |
-| **M15** | Medium | Docs | Eight user guides written from source, unwalked and unscreenshotted | M |
+| **M15** | Medium | Docs | Eight user guides written from source, unwalked; 5 of 8 still have no capture | M |
+| **M16** | Medium | Quests | Quest tag case-folding — **fixed, unverified in a world**; watch multi-word tags | S |
 | **M13** | Medium | Codex | Players do not see an entry become visible until they reopen | M |
 | **M8** | Medium | Blacksmith API | Adopt `api.entityList` for participant pickers | M |
 | **L10** | Low | Blacksmith API **[EXT]** | Orphan-tag check: deliberately not built, blocked upstream | S |
@@ -580,10 +581,21 @@ the wording and fixes nothing else.
 - **The claim that hovering a pin shows a name in the `Quest 3.02:` form.** Read from the
   pin construction in `manager-quest-pins.js`, not seen on a canvas.
 
-**No screenshots at all**, which is why `documentation/assets/` holds only a `.gitkeep`. The
-standard is explicit that no screenshot beats a wrong one, and that screenshots are how the
+**Three product captures now exist** and are placed: `librarian-product.webp` on the README,
+`home.md` and the getting-started guide; `librarian-codex.webp` on the codex guide;
+`librarian-quest.webp` on the quest guide. They are wide product shots -- a whole window, or
+three windows at once -- not step captures, so they show a reader what the thing looks like
+and settle nothing about any individual claim above.
+
+**Five guides still carry no capture:** importing, canvas pins, player, GM, settings. The
+player guide is the one that matters, because it is the only guide whose claims cannot be
+checked from the GM's own screen.
+
+The standard's point is that no screenshot beats a wrong one, and that screenshots are how
 wrong claims surface: three other modules published guides written this way and every one
-that later got captures found wrong labels. Expect the same here.
+that later got captures found wrong labels. That has not happened here yet -- these three
+were taken to show the product, not to walk the guides, so none of the unverified claims
+listed above has been confirmed or falsified by them.
 
 **How this closes:** walk each guide with a world open, fix what is wrong, add captures to
 `documentation/assets/`, then delete this item. Walking the player guide needs a second
@@ -591,6 +603,65 @@ client logged in as a player, which is the part most likely to be skipped and th
 covering the readers least able to correct it themselves.
 
 ---
+
+### M16 — Quest tags are never case-normalized
+
+Found in a product screenshot, then confirmed in code. A live quest's page reads:
+
+    Tags: melvaunt, bcod, investigation, Side, Exploration
+
+Three lowercase, two capitalised, in one quest. That is not a rendering artefact -- it is
+what is stored, and it stays that way through a round trip.
+
+**The whole path preserves case.** The reader takes tags verbatim
+([`utility-quest-parser.js:247`](../scripts/utility-quest-parser.js)) and its cleanup pass
+only trims and de-duplicates
+([`utility-quest-parser.js:370`](../scripts/utility-quest-parser.js)) -- `new Set` over
+case-varying strings keeps both. The writer emits `quest.tags.join(', ')` back unchanged
+([`panel-quest.js:3755`](../scripts/panel-quest.js) and
+[`panel-quest.js:4020`](../scripts/panel-quest.js)), so a round trip does not heal it.
+
+**Two visible consequences.** The tag cloud is built by adding raw tags to a `Set`
+([`panel-quest.js:3428`](../scripts/panel-quest.js)), so `Side` and `side` appear as two
+separate chips. Filtering is an exact string match --
+`this.filters.tags.some(tag => entry.tags.includes(tag))`
+([`panel-quest.js:2049`](../scripts/panel-quest.js)) -- so picking one chip hides every
+quest that spelled the tag the other way. A GM filtering for `side` silently loses the
+quests tagged `Side`, with nothing on screen to say a filter is dropping matches.
+
+**The codex does not have this defect**, which is what makes it worth fixing rather than
+accepting. Codex tags go through `normalizeTag` in
+[`utility-tags.js:72`](../scripts/utility-tags.js) -- lowercased, whitespace hyphenated --
+on the way into Blacksmith's store, and the H2 migration normalized all 347 production
+entries. So the two panels in the same module disagree about what a tag is, and a reader
+who learns the codex's behaviour will be wrong about quests.
+
+**Fixed, not yet verified in a running world.** `normalizeTagList` was added to
+[`utility-quest-parser.js`](../scripts/utility-quest-parser.js) and applied at three points:
+the reader's cleanup pass, which every read of a quest page funnels through; and both journal
+writers in [`panel-quest.js`](../scripts/panel-quest.js) -- one for quests already in memory
+and one for imported quests, which arrive straight from JSON and never touch the reader, so
+they had to be folded separately.
+
+Because the reader normalizes, the tag cloud and the filter are consistent from the first
+render: both are built from `entry.tags` after the fold, so no migration is needed to make
+filtering correct. Stored pages heal on their next write.
+
+**The consequence to watch is whitespace, not case.** `normalizeTag` is the codex's function
+and it hyphenates as well as lowercasing, so a multi-word quest tag rewrites: `Main Story`
+becomes `main-story` the next time that quest is saved. Half-matching the codex -- lowercase
+only -- would have left the two panels still disagreeing, and quest tags have to reach the
+hyphenated form anyway when they move to Blacksmith's store, so this is one conversion rather
+than two. It is still a visible change to existing content and nobody has looked at how many
+production quests carry a multi-word tag.
+
+**To verify:** open the quest browser, expand the tag cloud, and confirm no pair of chips
+differs only by case. Then pick a tag that was previously capitalised and check the filter
+returns the quests that used the lowercase spelling as well. The quest whose page reads
+`Side, Exploration` above is the specific one to look at.
+
+**Fold the remainder into A1 if A1 happens first.** A conversion to a data model has to
+decide the tag representation anyway.
 
 ### M13 — Players do not see an entry become visible until they reopen the codex
 

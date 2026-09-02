@@ -23,6 +23,8 @@ to them, which on a fresh install is nothing.
 Nothing else changes. Librarian adds no automation, alters no sheets, and touches nothing
 until you point it at a journal.
 
+![The Librarian menubar button with its Codex and Quests bar, and both browsers open beside a scene](../assets/librarian-product.webp)
+
 ## Point it at a journal
 
 GM only, and nothing works until this is done.

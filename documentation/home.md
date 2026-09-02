@@ -15,6 +15,8 @@ Requires [Coffee Pub Blacksmith](https://github.com/Drowbe/coffee-pub-blacksmith
 supplies the window chrome, canvas pins, the shared tag vocabulary and the compendium
 resolver.
 
+![The codex and quest browsers open either side of a scene, with the Librarian menubar button above them](assets/librarian-product.webp)
+
 ## For players and GMs
 
 - [Getting started](userguides/userguide-getting-started.md) -- what appears when you enable

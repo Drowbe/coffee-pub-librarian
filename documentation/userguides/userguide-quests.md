@@ -7,6 +7,8 @@ the map.
 
 Open quests from the **Librarian** button in the menubar, then **Quests**.
 
+![One quest in three places: its card in the browser, the edit sheet, and the journal page behind it](../assets/librarian-quest.webp)
+
 ## How the list is organised
 
 Three filters across the top of the window select what you are looking at:

@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [13.1.2]
+
+### Fixed
+
+- **Quest tags were never case-folded, so `Side` and `side` were two different tags.** One production quest stores `melvaunt, bcod, investigation, Side, Exploration` — three lowercase, two capitalised, in a single quest. The reader took tags verbatim and its cleanup pass only trimmed and de-duplicated; `new Set` over case-varying strings keeps both.
+
+  Two consequences, and the second is the damaging one. The tag cloud is built by adding raw tags to a `Set`, so the same tag appeared as two separate chips. Filtering is an exact string match — `this.filters.tags.some(tag => entry.tags.includes(tag))` — so picking one chip **silently hid every quest that spelled the tag the other way**, with nothing on screen to say a filter was discarding matches. A GM filtering for `side` lost the quests tagged `Side`.
+
+  The codex has never had this defect: its tags go through `normalizeTag` on the way into Blacksmith's store, and the 13.1.0 migration normalised all 347 production entries. So two panels in the same module disagreed about what a tag is, and a reader who learned the codex's behaviour was wrong about quests.
+
+  `normalizeTagList` now applies that same function at three points: the reader's cleanup pass, which every read of a quest page funnels through, and **both** journal writers — one for quests already in memory, one for imported quests, which arrive straight from JSON and never touch the reader, so they had to be folded separately. Because the reader normalises, the tag cloud and the filter agree from the first render and no migration is needed for filtering to be correct; stored pages heal on their next write.
+
+  **The visible consequence is whitespace, not case.** `normalizeTag` hyphenates as well as lowercasing, so a multi-word quest tag rewrites — `Main Story` becomes `main-story` the next time that quest saves. Matching the codex only halfway would have left the two panels still disagreeing, and quest tags have to reach the hyphenated form anyway when they move to Blacksmith's store, so this is one conversion rather than two.
+
+  Found in a product screenshot rather than by reading either the code or the guide it illustrates.
+
+### Added
+
+- **A documentation set, published to the repository wiki.** Eight user guides — getting started, codex, quests, importing, canvas pins, player, GM, settings — plus a `known-issues` page listing defects that have not been fixed yet and their workarounds, a routing `home` page, and the two existing architecture documents brought under the same tree. `documents/` became `documentation/` to match the suite-wide standard, which the rest of the Coffee Pub modules adopted at the same time.
+
+  The guides were written from source rather than from a running world, which under that standard makes every one of them a draft until somebody walks it. What is specifically unverified is recorded in `TODO.md` as **M15** — ordering of filters and card fields, the objective click behaviours, and the whole player guide, which was written from ownership logic and template conditionals with nobody sitting at a player client to confirm what is absent.
+
+- **Three product screenshots**, on the README, the wiki front page and the codex, quest and getting-started guides. Five guides still carry no capture. These are wide product shots rather than step captures, so they show what the module looks like and settle none of the unverified claims above — but the quest one is what surfaced the tag defect fixed in this release.
+
+  Nothing here ships: `documentation/` and `tools/` are excluded from the release zip, as design notes and build tooling always have been. The only files in this release that Foundry loads are `scripts/panel-quest.js` and `scripts/utility-quest-parser.js`.
+
 ## [13.1.1]
 
 ### Fixed

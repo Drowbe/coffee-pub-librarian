@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [14.0.0]
+
+### Changed
+
+- **Foundry VTT v14 verified.** `compatibility` is now `{minimum: "13", verified: "14", maximum: "14"}` — v13 remains supported, on the rule "until 13 breaks". The Blacksmith requirement moves from **13.20.0 to 14.1.0**, which is honourable alongside `minimum: "13"` because Blacksmith 14.1.0 itself declares `minimum: "13"`. The README carries both badges: v13 yellow for supported, v14 green for verified.
+
+  **Almost nothing needed porting, and that is a finding rather than a boast.** Librarian had no jQuery in `scripts/`, no `new Dialog(`, no `FormApplication`, no `extends Application`, and was already on the namespaced paths throughout — `foundry.applications.handlebars.renderTemplate`, `foundry.applications.ux.TextEditor.implementation`, `foundry.applications.apps.DocumentSheetConfig.registerSheet`, `foundry.abstract.TypeDataModel`, `foundry.applications.sheets.journal.JournalEntryPageProseMirrorSheet`. Only the bare global aliases (`mergeObject()`, `randomID()`, `duplicate()`) were removed in v14; the `foundry.utils` namespace is intact, and our eleven call sites use it exclusively.
+
+  Nor did the v14 breakage that bit four other modules in the suite apply here — hooks named after renamed Application classes register successfully and never fire. Librarian registers seven hooks and every one is a core document or settings hook, or Blacksmith's `blacksmith.tags.changed`. Not a `render*` or `close*` among them.
+
+  **Verified on the live 14.367 client at production scale**, not on a fixture: 342 declared-subtype codex pages loaded with **0 of 342** showing the empty `system` data that a validation failure produces; `CodexPageSheet` rendered; and codex tags — which since 13.1.0 live entirely in Blacksmith's store with nothing in our own document data — read back on **342 of 342 pages**, 1,642 assignments across a 439-tag vocabulary. Both browser windows opened clean, the codex browser rendering 17,716 nodes with no console errors.
+
+  The codex browser's Light-theme override — the block that exists because Blacksmith's Light palette is unreadable at codex density (M14) — was checked in two parts, because a matching selector is not a legible window: its four-class hook was confirmed intact on 14.367, and the author then opened that window in Light and confirmed the cards read.
+
+### Fixed
+
+- **The import/export dialog rendered unstyled on v14, and nothing said so.** Foundry's DialogV2 footer is `footer.form-footer` containing plain `button` elements keyed by `data-action`. Our stylesheet targeted `.dialog-buttons`, `.dialog-button` and `[data-button="import|download|close|cancel"]` — measured on 14.367, all of them match nothing. `.dialog-content` was the only one that survived.
+
+  This is the failure mode worth naming: **CSS reaching into core DOM fails silently.** No console error, no exception, no broken behaviour — the dialog worked perfectly and simply lost every rule. It was found by asking for a per-selector resolve against a live client rather than by using the module.
+
+  Every affected rule now matches **both** structures rather than swapping one for the other, because `minimum` is still `"13"` and replacing the old selectors would have fixed v14 by breaking the same dialog on a version we still ship for. The dialog root is matched as `:is(.dialog, .application).import-export-dialog`, since v14's `<dialog class="application dialog">` carries the class but does not dependably answer a `.dialog` query while open as a modal.
+
+  **The v13 half is retained on the evidence that it worked, not on a fresh measurement** — there was no v13 install on the machine that ran these checks, so no v13/v14 differential was performed and every finding in this release means "present on 14.367", never "changed since v13". The stylesheet says so at the rule rather than leaving it implied.
+
+### Added
+
+- **A guard on the codex page sheet's part reassembly.** The sheet slots its field block between core's header and editor by naming `header`, `content` and `footer` as strings off `JournalEntryPageProseMirrorSheet.EDIT_PARTS`. If a future Foundry renames or splits one, the key reads `undefined`, ApplicationV2 renders what it was given, and the sheet comes up missing its editor or footer with a clean console — a structural failure that looks like a styling bug.
+
+  `requireCorePart()` now throws at class-definition time, naming both the missing key and the parts that actually exist. All three keys are present on 14.367 and the sheet was confirmed rendering `header, codexFields, content, footer` in the intended order, so the guard changes nothing today. It was written precisely because nothing is broken: the dialog selectors above were correct once too, and nothing told anyone when they stopped being.
+
 ## [13.1.2]
 
 ### Fixed

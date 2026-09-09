@@ -531,6 +531,19 @@ names, four location rows and a tag strip. 55% brown on parchment is fine for on
 subtitle and illegible for six stacked labels, and a pale tan border on a pale ground
 leaves card edges invisible with nothing for the eye to group by.
 
+**v14 status: the selector is intact, the legibility is unverified.** During the v14
+migration the four-class hook this block hangs on --
+`.application.blacksmith-window-tool.blacksmith-window-tool-theme-light.librarian-codex-browser-window`
+-- was confirmed on the live 14.367 client: all four classes still land on one element in
+the order the selector expects. That was worth checking, because the import/export dialog's
+selectors died silently in the same release.
+
+Confirming the selector matches is not confirming the override still reads well, so the
+author opened the codex browser in Light on v14 and looked: **cards legible.** That closes
+the v14 question for this block. The override still stands and the reason for it is
+unchanged -- this was a check that Light on v14 is no worse than Light on v13, not evidence
+that Blacksmith's unmodified palette would do.
+
 **Do not read this as a Blacksmith bug.** Their values are defensible for what their own
 windows do; ours is a density they did not design for. That is exactly the kind of thing
 worth telling them rather than silently diverging.

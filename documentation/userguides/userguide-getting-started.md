@@ -7,9 +7,9 @@ where to go next.
 
 ## What you need
 
-Librarian requires **Coffee Pub Blacksmith**, version 13.20.0 or later, and will not start
+Librarian requires **Coffee Pub Blacksmith**, version 14.1.0 or later, and will not start
 without it -- Blacksmith supplies the windows, the canvas pins, the shared tags and the
-compendium lookups. Foundry v13, D&D 5e.
+compendium lookups. Foundry v13 or v14, D&D 5e.
 
 ## What changes when you enable it
 

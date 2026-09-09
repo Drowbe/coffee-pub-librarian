@@ -11,7 +11,13 @@
 
 
 /* Import/Export Dialog Styling */
-.dialog.import-export-dialog {
+/*
+    The dialog root. v14 renders DialogV2 as `<dialog class="application dialog">`, and a
+    modal `<dialog>` did not answer a `.dialog` query on the live 14.367 client -- the class
+    is there, selecting on it is not dependable. `.application` is matched alongside it so
+    the rule lands either way, and both are kept because `minimum` is still "13".
+*/
+:is(.dialog, .application).import-export-dialog {
     width: 600px !important;
     min-width: 600px !important;
     max-width: 90vw !important;
@@ -21,7 +27,7 @@
     overflow: auto !important;
 }
 
-.dialog.import-export-dialog .dialog-content {
+:is(.dialog, .application).import-export-dialog .dialog-content {
     width: 100% !important;
     height: auto !important;
     min-height: 400px !important;
@@ -29,7 +35,7 @@
     overflow: auto !important;
 }
 
-.dialog.import-export-dialog textarea {
+:is(.dialog, .application).import-export-dialog textarea {
     resize: vertical !important;
     min-height: 200px !important;
 }
@@ -160,53 +166,82 @@
 
 
 
-/* BUTTONS */
+/* BUTTONS
 
-.import-export-dialog .dialog-buttons {
+   Two dialog structures, because we support v13 and v14 and their footers differ.
+
+     v13:  div.dialog-buttons > button.dialog-button[data-button="import"]
+     v14:  footer.form-footer  > button[data-action="import"] > span
+
+   Measured on Foundry 14.367 by the Blacksmith session driving the live client:
+   `.dialog-buttons`, `.dialog-button` and every `[data-button="..."]` matched nothing,
+   while `.dialog-content` still resolved. The dialog kept working and rendered
+   unstyled -- which is the whole hazard. CSS reaching into core DOM fails silently,
+   so no console error and no thrown exception ever says the styling stopped applying.
+
+   Both sets are kept rather than swapped. The manifest still declares `minimum: "13"`,
+   and replacing the v13 selectors would break this same dialog on the version we
+   still support. Neither set was ever verified against a v13 client during this
+   migration -- there is no v13 install on the machine that ran these checks -- so the
+   v13 half is retained on the evidence that it worked, not on a fresh measurement.
+*/
+
+.import-export-dialog :is(.dialog-buttons, .form-footer) {
     display: flex !important;
     flex-direction: row !important;  /* horizontal instead of vertical */
     justify-content: space-between;  /* spread them out */
     gap: 4px;                        /* space between buttons */
-  }
-  
-  .import-export-dialog .dialog-buttons .dialog-button {
+}
+
+.import-export-dialog :is(.dialog-buttons, .form-footer) :is(.dialog-button, button) {
     flex: 1;               /* make them equal width */
     text-align: center;    /* center text inside */
-  }
-  
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="import"],
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="download"],
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="close"],
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="cancel"] {
-      border: none !important;
-      border-radius: 4px !important;
-      padding: 12px 4px !important;
-      cursor: pointer !important;
-      font-weight: 500 !important;
-      font-size: 1.1em;
-      text-transform: uppercase;
-  }
-  
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="import"],
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="download"] {
-      background: #28542b !important;
-      color: white !important;
-  }
-  
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="import"]:hover,
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="download"]:hover {
-      background: #1e3d20;
-  }
-  
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="close"],
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="cancel"] {
-      background: #222222 !important;
-      color: white !important;
-  }
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="close"]:hover,
-  .import-export-dialog .dialog-buttons .dialog-button[data-button="cancel"]:hover {
-      background: #2f2f2f;
-  } 
+}
+
+.import-export-dialog :is(.dialog-buttons, .form-footer) :is(.dialog-button, button):is(
+    [data-button="import"],   [data-action="import"],
+    [data-button="download"], [data-action="download"],
+    [data-button="close"],    [data-action="close"],
+    [data-button="cancel"],   [data-action="cancel"]
+) {
+    border: none !important;
+    border-radius: 4px !important;
+    padding: 12px 4px !important;
+    cursor: pointer !important;
+    font-weight: 500 !important;
+    font-size: 1.1em;
+    text-transform: uppercase;
+}
+
+.import-export-dialog :is(.dialog-buttons, .form-footer) :is(.dialog-button, button):is(
+    [data-button="import"],   [data-action="import"],
+    [data-button="download"], [data-action="download"]
+) {
+    background: #28542b !important;
+    color: white !important;
+}
+
+.import-export-dialog :is(.dialog-buttons, .form-footer) :is(.dialog-button, button):is(
+    [data-button="import"],   [data-action="import"],
+    [data-button="download"], [data-action="download"]
+):hover {
+    background: #1e3d20 !important;
+}
+
+.import-export-dialog :is(.dialog-buttons, .form-footer) :is(.dialog-button, button):is(
+    [data-button="close"],  [data-action="close"],
+    [data-button="cancel"], [data-action="cancel"]
+) {
+    background: #222222 !important;
+    color: white !important;
+}
+
+.import-export-dialog :is(.dialog-buttons, .form-footer) :is(.dialog-button, button):is(
+    [data-button="close"],  [data-action="close"],
+    [data-button="cancel"], [data-action="cancel"]
+):hover {
+    background: #2f2f2f !important;
+}
 
 /* Shared ApplicationV2 export window */
 .librarian-data-export-window {

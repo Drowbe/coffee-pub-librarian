@@ -319,7 +319,7 @@ exist here; the first two are what `manager-journal-routing.js` replaced.
 
 ## Technical Requirements
 
-- FoundryVTT v13+
+- FoundryVTT v13 or v14 (verified on v14)
 - D&D 5e system 5.5+
 - Required: `coffee-pub-blacksmith`
 
@@ -335,7 +335,7 @@ try {
 }
 ```
 
-### Async Content (v13+)
+### Async Content (v13 and v14)
 ```javascript
 let content = '';
 if (typeof page.text?.content === 'string') {

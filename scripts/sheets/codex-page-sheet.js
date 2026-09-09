@@ -9,6 +9,36 @@ import { getCodexTags, setCodexTags } from '../utility-tags.js';
 const JournalEntryPageProseMirrorSheet = foundry.applications.sheets.journal.JournalEntryPageProseMirrorSheet;
 
 /**
+ * Take a part off the core sheet by name, or throw saying what is actually there.
+ *
+ * EDIT_PARTS below reassembles the core sheet's parts to slot our field block between the
+ * header and the editor, which means we name `header`, `content` and `footer` as strings and
+ * depend on core keeping them. Without this guard a renamed part is not an error — the key
+ * reads `undefined`, ApplicationV2 renders the parts it was given, and the sheet comes up
+ * missing its editor or its footer with a clean console. It looks like a styling bug and it
+ * is a structural one.
+ *
+ * All three keys are present on Foundry 14.367, verified on the live client during the v14
+ * migration, and `EDIT_PARTS` had exactly those three keys — nothing renamed, split or added.
+ * The guard is written for the generation after next: it costs one lookup at class-definition
+ * time and converts a silent hole into a stack trace naming the key that moved and the keys
+ * that exist. Throwing here fails at module load, which is loud, early, and unmissable —
+ * deliberately worse than a broken sheet nobody reports.
+ */
+function requireCorePart(parts, key) {
+    const part = parts?.[key];
+    if (!part) {
+        throw new Error(
+            `${MODULE.TITLE} | JournalEntryPageProseMirrorSheet has no EDIT_PARTS.${key}. ` +
+            `Core parts are: ${Object.keys(parts ?? {}).join(', ') || '(none)'}. ` +
+            `The codex page sheet inserts its fields between core parts and must be updated ` +
+            `to match.`
+        );
+    }
+    return part;
+}
+
+/**
  * Sheet for codex journal pages (type "coffee-pub-librarian.codex").
  *
  * Extends the standard ProseMirror text page sheet so the page's native
@@ -26,12 +56,12 @@ export class CodexPageSheet extends JournalEntryPageProseMirrorSheet {
     };
 
     static EDIT_PARTS = {
-        header: JournalEntryPageProseMirrorSheet.EDIT_PARTS.header,
+        header: requireCorePart(JournalEntryPageProseMirrorSheet.EDIT_PARTS, 'header'),
         codexFields: {
             template: `modules/${MODULE.ID}/templates/page-codex-fields-edit.hbs`
         },
-        content: JournalEntryPageProseMirrorSheet.EDIT_PARTS.content,
-        footer: JournalEntryPageProseMirrorSheet.EDIT_PARTS.footer
+        content: requireCorePart(JournalEntryPageProseMirrorSheet.EDIT_PARTS, 'content'),
+        footer: requireCorePart(JournalEntryPageProseMirrorSheet.EDIT_PARTS, 'footer')
     };
 
     /** @inheritDoc */

@@ -4,7 +4,8 @@
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/Drowbe/coffee-pub-librarian/release.yml)
 ![GitHub all releases](https://img.shields.io/github/downloads/Drowbe/coffee-pub-librarian/total)
 ![MIT License](https://img.shields.io/badge/license-MIT-blue)
-![Foundry v13](https://img.shields.io/badge/foundry-v13-green)
+![Foundry v13](https://img.shields.io/badge/foundry-v13-yellow)
+![Foundry v14](https://img.shields.io/badge/foundry-v14-green)
 
 Keep your campaign's people, places and factions somewhere you can actually find them, and
 track the quests that run through them.
@@ -35,9 +36,9 @@ canvas; reveal an entry to your players the moment they earn it.
 
 ## Requirements
 
-- **Foundry VTT v13.**
+- **Foundry VTT v14**, verified. v13 is still supported.
 - **D&D 5e** game system.
-- **[Coffee Pub Blacksmith](https://github.com/Drowbe/coffee-pub-blacksmith) 13.20.0 or
+- **[Coffee Pub Blacksmith](https://github.com/Drowbe/coffee-pub-blacksmith) 14.1.0 or
   later** -- required. Librarian uses its window framework, canvas pins, tags, compendium
   resolver, party roster, menubar and dialogs, and will not start without it.
 

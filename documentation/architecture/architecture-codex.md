@@ -492,7 +492,7 @@ try {
 
 ### 2. **Async Content Handling**
 
-Journal page content can be async in FoundryVTT v13+:
+Journal page content can be async in FoundryVTT v13 and v14:
 ```javascript
 let content = '';
 if (typeof page.text?.content === 'string') {
@@ -532,7 +532,7 @@ if (typeof page.text?.content === 'string') {
 
 ## Technical Requirements
 
-- FoundryVTT v13+
+- FoundryVTT v13 or v14 (verified on v14)
 - D&D 5e system 5.5+
 - Required: `coffee-pub-blacksmith`
 

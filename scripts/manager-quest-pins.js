@@ -962,22 +962,27 @@ export async function initQuestPins() {
     // A broken quest pin was pointed at another quest (Blacksmith has already written `questUuid`). Rebuild what
     // the pin keeps about its quest: its number, which is derived from the quest's UUID, then its label, icon, tags
     // and category from the page and its ownership from the page's visibility, and flag the page with its pin.
-    pins.on?.('relinked', async (evt) => {
-        if (evt?.key !== 'questUuid' || !game.user?.isGM) return;
-        const page = await fromUuid(evt.newUuid);
-        const live = pins.get?.(evt.pinId);
-        if (!page || !live) return;
-        try {
-            await pins.update(evt.pinId, {
-                config: { ...(live.config || {}), questIndex: _getQuestNumber(evt.newUuid) }
-            }, live.sceneId ? { sceneId: live.sceneId } : undefined);
-            await updateQuestPinText(page, live.sceneId);
-            await updateQuestPinVisibility(evt.newUuid, live.sceneId);
-            await page.setFlag(MODULE.ID, 'pinId', evt.pinId);
-        } catch (error) {
-            console.warn(`${MODULE.TITLE} | Could not finish relinking a quest pin:`, error);
-        }
-    }, { moduleId: MODULE.ID, signal });
+    // Guarded: a Blacksmith from before relinking rejects the event type, which must not stop quest pin setup
+    try {
+        pins.on?.('relinked', async (evt) => {
+            if (evt?.key !== 'questUuid' || !game.user?.isGM) return;
+            const page = await fromUuid(evt.newUuid);
+            const live = pins.get?.(evt.pinId);
+            if (!page || !live) return;
+            try {
+                await pins.update(evt.pinId, {
+                    config: { ...(live.config || {}), questIndex: _getQuestNumber(evt.newUuid) }
+                }, live.sceneId ? { sceneId: live.sceneId } : undefined);
+                await updateQuestPinText(page, live.sceneId);
+                await updateQuestPinVisibility(evt.newUuid, live.sceneId);
+                await page.setFlag(MODULE.ID, 'pinId', evt.pinId);
+            } catch (error) {
+                console.warn(`${MODULE.TITLE} | Could not finish relinking a quest pin:`, error);
+            }
+        }, { moduleId: MODULE.ID, signal });
+    } catch (error) {
+        console.warn(`${MODULE.TITLE} | This Blacksmith cannot relink pins:`, error?.message ?? error);
+    }
 
     _initialised = true;
     console.info(`${MODULE.TITLE} | Quest pins initialised.`);

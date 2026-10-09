@@ -866,7 +866,13 @@ function _registerEventHandlers(pins) {
     }, { moduleId: MODULE.ID, signal });
 
     // relinked: a broken pin was pointed at another entry; rebuild what the pin keeps about it.
-    pins.on('relinked', (evt) => { void _onCodexPinRelinked(evt); }, { moduleId: MODULE.ID, signal });
+    // Guarded: a Blacksmith from before relinking rejects the event type, and that must not stop the rest of
+    // the codex pin wiring below it.
+    try {
+        pins.on('relinked', (evt) => { void _onCodexPinRelinked(evt); }, { moduleId: MODULE.ID, signal });
+    } catch (e) {
+        console.warn('Coffee Pub Librarian | This Blacksmith cannot relink pins:', e?.message ?? e);
+    }
 
     // bulk deletes: refresh all panels.
     pins.on('deletedAll',       () => _scheduleCodexPanelRefresh(), { moduleId: MODULE.ID, signal });

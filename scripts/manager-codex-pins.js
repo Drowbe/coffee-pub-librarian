@@ -865,6 +865,9 @@ function _registerEventHandlers(pins) {
         if (evt.pin?.config?.codexUuid) _scheduleCodexPanelRefresh();
     }, { moduleId: MODULE.ID, signal });
 
+    // relinked: a broken pin was pointed at another entry; rebuild what the pin keeps about it.
+    pins.on('relinked', (evt) => { void _onCodexPinRelinked(evt); }, { moduleId: MODULE.ID, signal });
+
     // bulk deletes: refresh all panels.
     pins.on('deletedAll',       () => _scheduleCodexPanelRefresh(), { moduleId: MODULE.ID, signal });
     pins.on('deletedAllByType', () => _scheduleCodexPanelRefresh(), { moduleId: MODULE.ID, signal });
@@ -874,10 +877,54 @@ function _registerEventHandlers(pins) {
 // TAXONOMY REGISTRATION
 // ============================================================================
 
+/**
+ * A codex pin was pointed at another codex entry. Blacksmith has already written `codexUuid`; what the pin
+ * keeps about its entry is ours to rebuild: its label, icon and tags from the entry and its category, who may
+ * see it from the entry's ownership, and the entry's `pinId` flag that the panel reads to find its pin.
+ * `createCodexPin` is the one place a codex pin is composed, and this mirrors it for the fields that come
+ * from the entry.
+ * @param {{ pinId: string, key: string, newUuid: string }} evt
+ */
+async function _onCodexPinRelinked(evt) {
+    if (evt?.key !== 'codexUuid' || !game.user?.isGM) return;
+    const pins = getPinsApi();
+    if (!isPinsApiAvailable(pins)) return;
+    const page = await fromUuid(evt.newUuid);
+    const live = pins.get?.(evt.pinId);
+    if (!page || !live) return;
+
+    const entryCategory = String(page.system?.category || '').trim();
+    const isVisible = (page.ownership?.default ?? 0) >= CONST.DOCUMENT_OWNERSHIP_LEVELS.OBSERVER;
+    try {
+        await pins.update(evt.pinId, {
+            text: String(page.name || '').trim(),
+            image: _codexCategoryToImage(entryCategory, page.system?.categoryIcon),
+            tags: _codexCategoryToPinTags(entryCategory, evt.newUuid),
+            ownership: _calculateCodexPinOwnership(page),
+            config: {
+                ...(live.config || {}),
+                codexUuid: evt.newUuid,
+                codexCategory: entryCategory,
+                blacksmithVisibility: isVisible ? 'visible' : 'hidden'
+            }
+        });
+        await page.setFlag(MODULE.ID, 'pinId', evt.pinId);
+    } catch (e) {
+        console.warn('Coffee Pub Librarian | _onCodexPinRelinked:', e);
+    }
+    _scheduleCodexPanelRefresh();
+}
+
 async function _registerTaxonomy(pins) {
     if (!isPinsApiAvailable(pins) || typeof pins.registerPinTaxonomy !== 'function') return;
     try {
-        pins.registerPinTaxonomy(MODULE.ID, getPinType('codex'),     { label: 'Codex Entry', tags: [] });
+        // `target`: where the pin's codex page lives, so Blacksmith can flag a pin whose entry was deleted.
+        // `relinkable` lets the GM point a broken pin at another codex entry (see `_onCodexPinRelinked`), and
+        // `relinkScope: 'world'` because a codex entry is a page in this world's codex journal: a compendium
+        // page is not one, and has no flags for the panel to read.
+        pins.registerPinTaxonomy(MODULE.ID, getPinType('codex'), {
+            label: 'Codex Entry', tags: [], target: ['codexUuid'], relinkable: true, relinkScope: 'world'
+        });
     } catch (e) {
         console.warn('Coffee Pub Librarian | registerPinTaxonomy failed:', e);
     }

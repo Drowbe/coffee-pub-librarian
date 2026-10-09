@@ -629,8 +629,14 @@ export async function updateQuestPinText(page, sceneId) {
             // Quest-level pin: update title and tags
             patch.text = `Quest ${questNum}: ${questTitle}${questTitle.endsWith('.') ? '' : '.'}`;
             patch.image = _getQuestPinImage(page, quest.category);
-            patch.tags = _questCategoryToPinTags('quest', pin.config?.questCategory, questTaxTags);
-            patch.config = { ...(pin.config || {}), questState: page.getFlag(MODULE.ID, 'visible') !== false ? 'visible' : 'hidden' };
+            // The page's own category, not the one the pin was made with: a pin pointed at another quest has to follow it
+            const category = quest.category || pin.config?.questCategory;
+            patch.tags = _questCategoryToPinTags('quest', category, questTaxTags);
+            patch.config = {
+                ...(pin.config || {}),
+                questCategory: category,
+                questState: page.getFlag(MODULE.ID, 'visible') !== false ? 'visible' : 'hidden'
+            };
         } else {
             // Objective-level pin: update text and tags
             const obj    = quest.tasks[pin.config.objectiveIndex];
@@ -911,13 +917,25 @@ export async function initQuestPins() {
     }
 
     try {
+        // `target` names the config key holding the quest page's UUID, so Blacksmith can flag a pin whose
+        // quest was deleted. An objective pin carries its quest's UUID too; a deleted objective inside a
+        // surviving quest is not detected.
+        //
+        // Only the quest-level pin is `relinkable`. An objective pin also holds an objective index into its
+        // quest's task list, which means nothing against a different quest, so relinking it would produce a
+        // pin that points at the wrong objective or none. `relinkScope: 'world'`: a quest is a page in the
+        // world's quest journal, which a compendium page is not.
         pins.registerPinTaxonomy?.(MODULE.ID, getSquirePinType('quest'), {
             label: 'Quest',
-            tags: ['quest', 'main', 'side', 'faction', 'backstory']
+            tags: ['quest', 'main', 'side', 'faction', 'backstory'],
+            target: ['questUuid'],
+            relinkable: true,
+            relinkScope: 'world'
         });
         pins.registerPinTaxonomy?.(MODULE.ID, getSquirePinType('objective'), {
             label: 'Objective',
-            tags: ['objective', 'main', 'side', 'faction', 'backstory']
+            tags: ['objective', 'main', 'side', 'faction', 'backstory'],
+            target: ['questUuid']
         });
     } catch (error) {
         console.warn(`${MODULE.TITLE} | registerPinTaxonomy failed:`, error);
@@ -939,6 +957,26 @@ export async function initQuestPins() {
     pins.on?.('updated', (evt) => {
         // Fire-and-forget: never let a diagnostic block anything.
         _warnIfQuestPinVisibilityEdited(evt);
+    }, { moduleId: MODULE.ID, signal });
+
+    // A broken quest pin was pointed at another quest (Blacksmith has already written `questUuid`). Rebuild what
+    // the pin keeps about its quest: its number, which is derived from the quest's UUID, then its label, icon, tags
+    // and category from the page and its ownership from the page's visibility, and flag the page with its pin.
+    pins.on?.('relinked', async (evt) => {
+        if (evt?.key !== 'questUuid' || !game.user?.isGM) return;
+        const page = await fromUuid(evt.newUuid);
+        const live = pins.get?.(evt.pinId);
+        if (!page || !live) return;
+        try {
+            await pins.update(evt.pinId, {
+                config: { ...(live.config || {}), questIndex: _getQuestNumber(evt.newUuid) }
+            }, live.sceneId ? { sceneId: live.sceneId } : undefined);
+            await updateQuestPinText(page, live.sceneId);
+            await updateQuestPinVisibility(evt.newUuid, live.sceneId);
+            await page.setFlag(MODULE.ID, 'pinId', evt.pinId);
+        } catch (error) {
+            console.warn(`${MODULE.TITLE} | Could not finish relinking a quest pin:`, error);
+        }
     }, { moduleId: MODULE.ID, signal });
 
     _initialised = true;

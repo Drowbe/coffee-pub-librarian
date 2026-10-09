@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Added
+
+- **A broken codex or quest pin can be relinked to another entry** (`scripts/manager-codex-pins.js`, `scripts/manager-quest-pins.js`). Codex and quest pin types are now `relinkable`, and `relinkScope: 'world'` so only this world's pages are offered. When a GM relinks a pin whose page was deleted, Librarian rebuilds what the pin keeps about its page: its label, icon, tags and category from the new page, who may see it from the page's visibility, a quest pin's number, and the page's `pinId` flag that the panel reads to find its pin. Objective pins are not relinkable: they hold an index into their quest's task list, which means nothing against a different quest. Quest pin tags and category now follow the quest page's own category when its text is refreshed, which they did not before. Needs a Blacksmith with relinking.
+
+- **Quest, objective and codex pins whose page was deleted are flagged** (`scripts/manager-quest-pins.js`, `scripts/manager-codex-pins.js`). Each pin type now tells Blacksmith where its page is stored (`questUuid` for quest and objective pins, `codexUuid` for codex pins). When that page no longer exists, the GM and the pin's owners see a broken-link glyph on the pin, and Configure Pin shows a Linked to row with the page's name, which opens it. Double-clicking such a pin now says so instead of doing nothing. An objective pin points at its quest's page, so a deleted objective inside a surviving quest is not detected. Needs a Blacksmith with this feature; an older one ignores the declaration.
+
 ## [14.0.0]
 
 ### Changed

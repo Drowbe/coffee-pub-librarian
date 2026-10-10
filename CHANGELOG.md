@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [Unreleased]
+
+### Fixed
+
+- **Pins Squire made are taken over, so codex and quest pins from before the move are Librarian's again** (`scripts/librarian.js`). Pins made while Squire owned codex and quests still carry `coffee-pub-squire` as their module, and Librarian lists and answers only its own, so a world's older codex, quest and objective pins were invisible to its panels and ignored on double-click. On a GM's load it now asks Blacksmith to move those three kinds to Librarian, once; only the module id changes. Quest pins are then reconciled against their pages. Needs a Blacksmith with `pins.adopt`; an older one skips it.
+
+- **Codex and quest pin vocabulary is registered before the canvas is up** (`scripts/manager-codex-pins.js`, `scripts/manager-quest-pins.js`). The pin type labels, taxonomy and link declarations waited behind `pins.whenReady()`, which resolves on a canvas that can be a long time coming, and until then Blacksmith could not label these pins or say what they point at. They are now registered first; only the work that lists pins still waits for a scene.
+
 ## [14.0.1]
 
 ### Added

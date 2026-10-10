@@ -953,17 +953,21 @@ export async function initCodexPins() {
         return;
     }
 
+    _pinManagerController = new AbortController();
+
+    // The vocabulary (type label, taxonomy, link declaration) and the event handlers need no canvas, so they
+    // are registered first. They used to wait behind `whenReady`, which resolves on a canvas that may be a
+    // long time coming, and until then Blacksmith could not label these pins or say what they point at.
+    await _registerTaxonomy(pins);
+    _registerEventHandlers(pins);
+    _registerContextMenuItems(pins);
+
+    // Migration lists pins, which does need a scene to be up.
     try {
         if (typeof pins.whenReady === 'function') await pins.whenReady();
     } catch (e) {
         console.warn('Coffee Pub Librarian | pins.whenReady() failed during initCodexPins:', e);
     }
-
-    _pinManagerController = new AbortController();
-
-    await _registerTaxonomy(pins);
-    _registerEventHandlers(pins);
-    _registerContextMenuItems(pins);
 
     // Run migrations (GM only).
     await _migrateCodexPinFlags();

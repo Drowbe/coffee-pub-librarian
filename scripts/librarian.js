@@ -96,6 +96,23 @@ Hooks.once('ready', async () => {
         console.error(`${MODULE.TITLE} | Failed to initialise codex pins:`, error);
     }
 
+    // Pins Squire made, before codex and quests moved here, still name Squire as their module. Without this
+    // Librarian neither lists them nor answers their double-click, and Blacksmith cannot say what they point at.
+    // Only the module id moves; everything else about each pin stays. A GM does it once and later runs find nothing.
+    try {
+        const pins = blacksmith.pins ?? game.modules.get('coffee-pub-blacksmith')?.api?.pins;
+        if (game.user?.isGM && typeof pins?.adopt === 'function') {
+            const moved = await pins.adopt('coffee-pub-squire', MODULE.ID, { types: ['codex', 'quest', 'objective'] });
+            if (moved) {
+                console.info(`${MODULE.TITLE} | Took over ${moved} pin${moved === 1 ? '' : 's'} that Squire made.`);
+                const { reconcileQuestPins } = await import('./manager-quest-pins.js');
+                await reconcileQuestPins();
+            }
+        }
+    } catch (error) {
+        console.warn(`${MODULE.TITLE} | Could not take over Squire's pins:`, error);
+    }
+
     // The quest list renders one partial per entry.
     try {
         const questEntry = await fetch(TEMPLATES.PARTIAL_QUEST_ENTRY).then(r => r.text());

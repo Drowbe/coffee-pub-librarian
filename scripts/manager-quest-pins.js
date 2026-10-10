@@ -900,12 +900,6 @@ export async function initQuestPins() {
         return;
     }
 
-    try {
-        if (typeof pins.whenReady === 'function') await pins.whenReady();
-    } catch (error) {
-        console.warn(`${MODULE.TITLE} | pins.whenReady() failed during initQuestPins:`, error);
-    }
-
     _controller = new AbortController();
     const signal = _controller.signal;
 
@@ -939,6 +933,14 @@ export async function initQuestPins() {
         });
     } catch (error) {
         console.warn(`${MODULE.TITLE} | registerPinTaxonomy failed:`, error);
+    }
+
+    // Everything above needs no canvas, so it is registered at once: it used to wait behind `whenReady`,
+    // and until the canvas was up Blacksmith could not label these pins or say what they point at.
+    try {
+        if (typeof pins.whenReady === 'function') await pins.whenReady();
+    } catch (error) {
+        console.warn(`${MODULE.TITLE} | pins.whenReady() failed during initQuestPins:`, error);
     }
 
     // Double-click a quest or objective pin to reveal it in the quest browser.
